@@ -8,6 +8,8 @@
 ## Install
 
 ```sh
+pip install --upgrade git+https://github.com/yindaheng98/ScalableVQ.git@master
+pip install --upgrade git+https://github.com/yindaheng98/PostRenderPerspectiveAlign.git@master
 pip install --upgrade git+https://github.com/yindaheng98/ColorAdaptiveGaussianSplatting.git@main
 ```
 If you have trouble with [`gaussian-splatting`](https://github.com/yindaheng98/gaussian-splatting) or [`reduced-3dgs`](https://github.com/yindaheng98/reduced-3dgs), you can install them from source:
@@ -22,6 +24,8 @@ pip install --upgrade git+https://github.com/yindaheng98/reduced-3dgs.git@main
 git clone --recursive https://github.com/yindaheng98/ColorAdaptiveGaussianSplatting
 cd ColorAdaptiveGaussianSplatting
 pip install tqdm plyfile scikit-learn numpy
+pip install --upgrade --target . --no-deps git+https://github.com/yindaheng98/ScalableVQ.git@master
+pip install --upgrade --target . --no-deps git+https://github.com/yindaheng98/PostRenderPerspectiveAlign.git@master
 pip install --upgrade --target . --no-deps git+https://github.com/yindaheng98/gaussian-splatting.git@master
 pip install --upgrade --target . --no-deps git+https://github.com/yindaheng98/reduced-3dgs.git@main
 pip install --upgrade --target . --no-deps .
