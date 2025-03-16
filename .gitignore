@@ -1,6 +1,9 @@
 prpa/
 scalablevq/
+gaussian_splatting/
+reduced_3dgs/
 *.dist-info
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
