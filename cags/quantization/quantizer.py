@@ -8,11 +8,12 @@ from reduced_3dgs.quantization import ExcludeZeroSHQuantizer
 from scalablevq import encode_layers, Layer
 
 
-def array2record(array: torch.Tensor, perfix, n_cols, dtype):
-    dtype_full = [(f'{perfix}_{i}', dtype) for i in range(n_cols)] if n_cols > 1 else [(perfix, dtype)]
-    data_full = map(lambda x: x.squeeze(-1), np.array_split(array.cpu().numpy(), n_cols, axis=1))
-    record = np.rec.fromarrays(data_full, dtype=dtype_full)
-    return record
+def expand_base_layer(layer: Layer, zero_mask: torch.Tensor):
+    codes = torch.zeros(zero_mask.shape[0], dtype=layer.codes.dtype, device=layer.codes.device)
+    codes[~zero_mask] = layer.codes + (1 << layer.n_bit)
+    codebook = torch.cat([torch.zeros(1, dtype=layer.codebook.dtype, device=layer.codebook.device), layer.codebook])
+    cluster_centers = torch.cat([torch.zeros((1, layer.cluster_centers.shape[1]), dtype=layer.cluster_centers.dtype, device=layer.cluster_centers.device), layer.cluster_centers])
+    return Layer(codes=codes, codebook=codebook, cluster_centers=cluster_centers, n_bit=layer.n_bit + 1, n_leaf=layer.n_leaf + 1)
 
 
 class ScalableQuantizer(ExcludeZeroSHQuantizer):
@@ -45,7 +46,7 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         nonzero_values, nonzero_ids = values[~zeros_mask], ids[~zeros_mask]
         nonzero_codebook = codebook[nonzero_ids.unique()]
         layers = encode_layers(nonzero_values, nonzero_ids, nonzero_codebook, self.n_bits_proposal_features_dc)
-        return layers  # TODO: reshape layers
+        return [expand_base_layer(layers[0], zeros_mask)] + layers[1:]
 
     def produce_layers_features_dc(self, ids, codebook):
         return self.encode_layers(self.model._features_dc.detach().squeeze(1), ids, codebook, self.n_bits_proposal_features_dc)
@@ -116,4 +117,13 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
             layers_dict["scaling"][0].codes.unsqueeze(-1).cpu().numpy(),
             layers_dict["features_dc"][0].codes.unsqueeze(-1).cpu().numpy(),
         ]
-        pass  # TODO
+        for sh_degree in range(model.max_sh_degree):
+            if not layers_dict[f"features_rest_{sh_degree}"]:
+                continue
+            features_rest = layers_dict[f'features_rest_{sh_degree}'][0].codes.reshape(-1, 3).cpu().numpy()
+            data_full.extend(np.array_split(features_rest, 3, axis=1))
+
+        elements = np.rec.fromarrays([data.squeeze(-1) for data in data_full], dtype=dtype_full)
+        el = PlyElement.describe(elements, 'vertex')
+
+        PlyData([el]).write(ply_path)
