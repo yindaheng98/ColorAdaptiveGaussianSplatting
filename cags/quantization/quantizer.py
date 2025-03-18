@@ -36,10 +36,14 @@ class ScalableQuantizer(ExcludeZeroQuantizer):
         self.n_bits_proposal_features_rest = [(n_bits_proposal_features_rest[i] if len(n_bits_proposal_features_rest) > i else n_bits_proposal.copy()) for i in range(model.max_sh_degree)]
 
     def encode_layers(self, values: torch.Tensor, ids: torch.Tensor, codebook: torch.Tensor, n_bits_proposal: List[int]):
+        assert codebook.shape[0] > 1
+        assert codebook[0, ...].abs().max() > self.treat_as_zero
+        return encode_layers(values, ids, codebook, n_bits_proposal)
+
+    def encode_layers_exclude_zero(self, values: torch.Tensor, ids: torch.Tensor, codebook: torch.Tensor, n_bits_proposal: List[int]):
         if codebook.shape[0] <= 1:  # all zero from ExcludeZeroQuantizer.generate_codebook
             return []
-        if codebook[0, ...].abs().max() > self.treat_as_zero:  # all zero from ExcludeZeroQuantizer.generate_codebook
-            return encode_layers(values, ids, codebook, n_bits_proposal)
+        assert codebook[0, ...].abs().max() <= self.treat_as_zero  # the first line is zero from ExcludeZeroQuantizer.generate_codebook
         zeros_mask = ids == 0
         nonzero_values, nonzero_ids = values[~zeros_mask], ids[~zeros_mask]
         nonzero_codebook = codebook[nonzero_ids.unique()]
@@ -54,7 +58,7 @@ class ScalableQuantizer(ExcludeZeroQuantizer):
         features_rest_flatten = self.model._features_rest.detach().transpose(1, 2).flatten(0, 1)
         features_rest = features_rest_flatten[:, sh_idx_start:sh_idx_end]
         ids_reshaped = ids.reshape(-1)
-        layers = self.encode_layers(features_rest, ids_reshaped, codebook, self.n_bits_proposal_features_rest[sh_degree])
+        layers = self.encode_layers_exclude_zero(features_rest, ids_reshaped, codebook, self.n_bits_proposal_features_rest[sh_degree])
         return layers
 
     def produce_layers_rotation_re(self, ids, codebook):
