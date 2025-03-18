@@ -59,8 +59,6 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         return encode_layers(values, ids, codebook, n_bits_proposal)
 
     def encode_layers_exclude_zero(self, values: torch.Tensor, ids: torch.Tensor, codebook: torch.Tensor, n_bits_proposal: List[int]):
-        if codebook.shape[0] <= 1:  # all zero from ExcludeZeroQuantizer.generate_codebook
-            return []
         zeros_mask = ids == 0
         nonzero_values, nonzero_ids = values[~zeros_mask], ids[~zeros_mask]
         nonzero_codebook = codebook[nonzero_ids.unique()]
@@ -71,10 +69,12 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         return self.encode_layers(self.model._features_dc.detach().squeeze(1), ids, codebook, self.n_bits_proposal_features_dc)
 
     def cluster2layers_features_rest(self, sh_degree, ids, codebook):
+        if codebook.shape[0] <= 1:  # all zero from ExcludeZeroQuantizer.generate_codebook
+            return []
         sh_idx_start, sh_idx_end = (sh_degree + 1) ** 2 - 1, (sh_degree + 2) ** 2 - 1
         features_rest_flatten = self.model._features_rest.detach().transpose(1, 2).flatten(0, 1)
         features_rest = features_rest_flatten[:, sh_idx_start:sh_idx_end]
-        ids_reshaped = ids.reshape(-1)
+        ids_reshaped = ids.reshape(ids.shape[0] * 3)
         layers = self.encode_layers_exclude_zero(features_rest, ids_reshaped, codebook, self.n_bits_proposal_features_rest[sh_degree])
         return layers
 
@@ -107,22 +107,35 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
     def extract_layers(self, layers: List[Layer]):
         return extract_layers(layers)
 
+    def layers2cluster_features_dc(self, layers: List[Layer]):
+        ids, codebook = self.extract_layers(layers)
+        return ids.unsqueeze(1), codebook
+
     def extract_layers_exclude_zero(self, layers: List[Layer]):
-        if len(layers) <= 0:
-            raise NotImplementedError("No layers to extract")
         layer, zero_mask = shrink_base_layer(layers[0])
         nonzero_ids, nonzero_codebook = extract_layers([layer] + layers[1:])
         ids = torch.zeros(zero_mask.shape[0], dtype=nonzero_ids.dtype, device=nonzero_ids.device)
         ids[~zero_mask] = nonzero_ids + 1
         codebook = torch.cat([torch.zeros((1, *nonzero_codebook.shape[1:]), dtype=nonzero_codebook.dtype, device=nonzero_codebook.device), nonzero_codebook])
+        ids = ids.reshape(ids.shape[0] // 3, 3)
         return ids, codebook
+
+    def layers2cluster_features_rest(self, sh_degree: int, layers: List[Layer], reference_ids: torch.Tensor, reference_codebook: torch.Tensor):
+        sh_idx_start, sh_idx_end = (sh_degree + 1) ** 2 - 1, (sh_degree + 2) ** 2 - 1
+        if len(layers) <= 0:  # all zero from ExcludeZeroQuantizer.generate_codebook
+            ids = torch.zeros((reference_ids.shape[0], 3), dtype=reference_ids.dtype, device=reference_ids.device)
+            codebook = torch.zeros((1, sh_idx_end - sh_idx_start), dtype=reference_codebook.dtype, device=reference_codebook.device)
+            return ids, codebook
+        return self.extract_layers_exclude_zero(layers)
 
     def layers2cluster(self, layers_dict: Dict[str, List[Layer]]):
         ids_dict: Dict[str, torch.Tensor] = {}
         codebook_dict: Dict[str, torch.Tensor] = {}
-        ids_dict["features_dc"], codebook_dict["features_dc"] = self.extract_layers(layers_dict["features_dc"])
+        ids_dict["features_dc"], codebook_dict["features_dc"] = self.layers2cluster_features_dc(layers_dict["features_dc"])
         for sh_degree in range(self.model.max_sh_degree):
-            ids_dict[f'features_rest_{sh_degree}'], codebook_dict[f'features_rest_{sh_degree}'] = self.extract_layers_exclude_zero(layers_dict[f'features_rest_{sh_degree}'])
+            ids_dict[f'features_rest_{sh_degree}'], codebook_dict[f'features_rest_{sh_degree}'] = self.layers2cluster_features_rest(
+                sh_degree, layers_dict[f'features_rest_{sh_degree}'], ids_dict["features_dc"], codebook_dict["features_dc"]
+            )
 
         ids_dict["rotation_re"], codebook_dict["rotation_re"] = self.extract_layers(layers_dict["rotation_re"])
         ids_dict["rotation_im"], codebook_dict["rotation_im"] = self.extract_layers(layers_dict["rotation_im"])
