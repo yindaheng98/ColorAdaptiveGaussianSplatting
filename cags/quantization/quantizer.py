@@ -1,3 +1,4 @@
+import os
 import math
 from typing import List, Dict
 import numpy as np
@@ -100,7 +101,7 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
             ('f_dc', self.force_code_dtype or f"u{math.ceil(layers_dict['features_dc'][0].n_bit / 8)}"),
         ]
         for sh_degree in range(model.max_sh_degree):
-            if not layers_dict[f"features_rest_{sh_degree}"]:
+            if len(layers_dict[f"features_rest_{sh_degree}"]) <= 0:
                 continue
             force_code_dtype = self.force_code_dtype or f"u{math.ceil(layers_dict[f'features_rest_{sh_degree}'][0].n_bit / 8)}"
             dtype_full.extend([
@@ -118,7 +119,7 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
             layers_dict["features_dc"][0].codes.unsqueeze(-1).cpu().numpy(),
         ]
         for sh_degree in range(model.max_sh_degree):
-            if not layers_dict[f"features_rest_{sh_degree}"]:
+            if len(layers_dict[f"features_rest_{sh_degree}"]) <= 0:
                 continue
             features_rest = layers_dict[f'features_rest_{sh_degree}'][0].codes.reshape(-1, 3).cpu().numpy()
             data_full.extend(np.array_split(features_rest, 3, axis=1))
@@ -127,3 +128,8 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         el = PlyElement.describe(elements, 'vertex')
 
         PlyData([el]).write(ply_path)
+
+        # save base layer codebooks
+        codebooks = {f"{key}_codebook": layers[0].codebook.cpu().numpy() for key, layers in layers_dict.items() if len(layers) > 0}
+        cluster_centers = {f"{key}_cluster_centers": layers[0].cluster_centers.cpu().numpy() for key, layers in layers_dict.items() if len(layers) > 0}
+        np.savez_compressed(os.path.splitext(ply_path)[0] + ".codebook.npz", **codebooks, **cluster_centers)
