@@ -17,6 +17,16 @@ def expand_base_layer(layer: Layer, zero_mask: torch.Tensor):
     return Layer(codes=codes, codebook=codebook, cluster_centers=cluster_centers, n_bit=layer.n_bit + 1, n_leaf=layer.n_leaf + 1)
 
 
+def save_layer(layer: Layer, path: str):
+    np.savez_compressed(
+        path,
+        codes=layer.codes.cpu().numpy(),
+        codebook=layer.codebook.cpu().numpy(),
+        cluster_centers=layer.cluster_centers.cpu().numpy(),
+        n_bit=layer.n_bit,
+        n_leaf=layer.n_leaf)
+
+
 class ScalableQuantizer(ExcludeZeroSHQuantizer):
     def __init__(
         self, model: GaussianModel,
@@ -133,3 +143,10 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         codebooks = {f"{key}_codebook": layers[0].codebook.cpu().numpy() for key, layers in layers_dict.items() if len(layers) > 0}
         cluster_centers = {f"{key}_cluster_centers": layers[0].cluster_centers.cpu().numpy() for key, layers in layers_dict.items() if len(layers) > 0}
         np.savez_compressed(os.path.splitext(ply_path)[0] + ".codebook.npz", **codebooks, **cluster_centers)
+
+        # save other layers
+        for key, layers in layers_dict.items():
+            if len(layers) <= 1:
+                continue
+            for i, layer in enumerate(layers[1:]):
+                save_layer(layer, os.path.splitext(ply_path)[0] + f".layer.{i + 1}.{key}.npz")
