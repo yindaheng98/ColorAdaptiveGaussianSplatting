@@ -1,0 +1,27 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "quantize",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "cags.quantize",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "-s",
+                "output/truck-reduced",
+                "-d",
+                "output/truck-scalable",
+                "-i",
+                "30000",
+                "--num_clusters_scaling=1024",
+                "--num_clusters_rotation_re=256",
+                "--num_clusters_rotation_im=1024",
+                "--num_clusters_opacity=256",
+                "--num_clusters_features_dc=512",
+                "--num_clusters_features_rest=256",
+            ]
+        },
+    ]
+}
