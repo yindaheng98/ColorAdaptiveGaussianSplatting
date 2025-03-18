@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from plyfile import PlyData, PlyElement
 from gaussian_splatting import GaussianModel
-from reduced_3dgs.quantization import ExcludeZeroQuantizer
+from reduced_3dgs.quantization import ExcludeZeroSHQuantizer
 from scalablevq import encode_layers, Layer
 
 
@@ -15,7 +15,7 @@ def array2record(array: torch.Tensor, perfix, n_cols, dtype):
     return record
 
 
-class ScalableQuantizer(ExcludeZeroQuantizer):
+class ScalableQuantizer(ExcludeZeroSHQuantizer):
     def __init__(
         self, model: GaussianModel,
         n_bits_proposal: List[int] = [4, 2, 2, 2, 2],
@@ -36,14 +36,11 @@ class ScalableQuantizer(ExcludeZeroQuantizer):
         self.n_bits_proposal_features_rest = [(n_bits_proposal_features_rest[i] if len(n_bits_proposal_features_rest) > i else n_bits_proposal.copy()) for i in range(model.max_sh_degree)]
 
     def encode_layers(self, values: torch.Tensor, ids: torch.Tensor, codebook: torch.Tensor, n_bits_proposal: List[int]):
-        assert codebook.shape[0] > 1
-        assert codebook[0, ...].abs().max() > self.treat_as_zero
         return encode_layers(values, ids, codebook, n_bits_proposal)
 
     def encode_layers_exclude_zero(self, values: torch.Tensor, ids: torch.Tensor, codebook: torch.Tensor, n_bits_proposal: List[int]):
         if codebook.shape[0] <= 1:  # all zero from ExcludeZeroQuantizer.generate_codebook
             return []
-        assert codebook[0, ...].abs().max() <= self.treat_as_zero  # the first line is zero from ExcludeZeroQuantizer.generate_codebook
         zeros_mask = ids == 0
         nonzero_values, nonzero_ids = values[~zeros_mask], ids[~zeros_mask]
         nonzero_codebook = codebook[nonzero_ids.unique()]
@@ -110,4 +107,13 @@ class ScalableQuantizer(ExcludeZeroQuantizer):
                 (f'f_rest_{sh_degree}_1', force_code_dtype),
                 (f'f_rest_{sh_degree}_2', force_code_dtype),
             ])
+        data_full = [
+            *np.array_split(model._xyz.detach().cpu().numpy(), 3, axis=1),
+            *np.array_split(torch.zeros_like(model._xyz).detach().cpu().numpy(), 3, axis=1),
+            layers_dict["rotation_re"][0].codes.unsqueeze(-1).cpu().numpy(),
+            layers_dict["rotation_im"][0].codes.unsqueeze(-1).cpu().numpy(),
+            layers_dict["opacity"][0].codes.unsqueeze(-1).cpu().numpy(),
+            layers_dict["scaling"][0].codes.unsqueeze(-1).cpu().numpy(),
+            layers_dict["features_dc"][0].codes.unsqueeze(-1).cpu().numpy(),
+        ]
         pass  # TODO
