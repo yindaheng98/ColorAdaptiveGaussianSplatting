@@ -36,15 +36,15 @@ class ScalableQuantizer(ExcludeZeroQuantizer):
         self.n_bits_proposal_features_rest = [(n_bits_proposal_features_rest[i] if len(n_bits_proposal_features_rest) > i else n_bits_proposal.copy()) for i in range(model.max_sh_degree)]
 
     def encode_layers(self, values: torch.Tensor, ids: torch.Tensor, codebook: torch.Tensor, n_bits_proposal: List[int]):
-        zeros_mask = (values.abs() < self.treat_as_zero).all(-1)
-        if zeros_mask.all():
+        if codebook.shape[0] <= 1:  # all zero from ExcludeZeroQuantizer.generate_codebook
             return []
-        if zeros_mask.sum() <= self.extract_zero_thr * values.shape[0]:
+        if codebook[0, ...].abs().max() > self.treat_as_zero:  # all zero from ExcludeZeroQuantizer.generate_codebook
             return encode_layers(values, ids, codebook, n_bits_proposal)
+        zeros_mask = ids == 0
         nonzero_values, nonzero_ids = values[~zeros_mask], ids[~zeros_mask]
         nonzero_codebook = codebook[nonzero_ids.unique()]
         layers = encode_layers(nonzero_values, nonzero_ids, nonzero_codebook, self.n_bits_proposal_features_dc)
-        return layers
+        return layers  # TODO: reshape layers
 
     def produce_layers_features_dc(self, ids, codebook):
         return self.encode_layers(self.model._features_dc.detach().squeeze(1), ids, codebook, self.n_bits_proposal_features_dc)
@@ -53,8 +53,9 @@ class ScalableQuantizer(ExcludeZeroQuantizer):
         sh_idx_start, sh_idx_end = (sh_degree + 1) ** 2 - 1, (sh_degree + 2) ** 2 - 1
         features_rest_flatten = self.model._features_rest.detach().transpose(1, 2).flatten(0, 1)
         features_rest = features_rest_flatten[:, sh_idx_start:sh_idx_end]
-        layers = self.encode_layers(features_rest, ids.reshape(-1), codebook, self.n_bits_proposal_features_rest[sh_degree])
-        return layers  # TODO: reshape layers
+        ids_reshaped = ids.reshape(-1)
+        layers = self.encode_layers(features_rest, ids_reshaped, codebook, self.n_bits_proposal_features_rest[sh_degree])
+        return layers
 
     def produce_layers_rotation_re(self, ids, codebook):
         return self.encode_layers(self.model.get_rotation.detach()[:, 0:1], ids, codebook, self.n_bits_proposal_rotation_re)
@@ -85,5 +86,24 @@ class ScalableQuantizer(ExcludeZeroQuantizer):
     def save_quantized(self, ply_path: str):
         model = self.model
         codebook_dict, ids_dict = self.produce_clusters(self._codebook_dict)
+        self._codebook_dict = codebook_dict
         layers_dict = self.produce_layers(codebook_dict, ids_dict)
+        dtype_full = [
+            ('x', 'f4'), ('y', 'f4'), ('z', 'f4'),
+            ('nx', 'f4'), ('ny', 'f4'), ('nz', 'f4'),
+            ('rot_re', self.force_code_dtype or f"u{math.ceil(layers_dict['rotation_re'][0].n_bit / 8)}"),
+            ('rot_im', self.force_code_dtype or f"u{math.ceil(layers_dict['rotation_im'][0].n_bit / 8)}"),
+            ('opacity', self.force_code_dtype or f"u{math.ceil(layers_dict['opacity'][0].n_bit / 8)}"),
+            ('scale', self.force_code_dtype or f"u{math.ceil(layers_dict['scaling'][0].n_bit / 8)}"),
+            ('f_dc', self.force_code_dtype or f"u{math.ceil(layers_dict['features_dc'][0].n_bit / 8)}"),
+        ]
+        for sh_degree in range(model.max_sh_degree):
+            if not layers_dict[f"features_rest_{sh_degree}"]:
+                continue
+            force_code_dtype = self.force_code_dtype or f"u{math.ceil(layers_dict[f'features_rest_{sh_degree}'][0].n_bit / 8)}"
+            dtype_full.extend([
+                (f'f_rest_{sh_degree}_0', force_code_dtype),
+                (f'f_rest_{sh_degree}_1', force_code_dtype),
+                (f'f_rest_{sh_degree}_2', force_code_dtype),
+            ])
         pass  # TODO
