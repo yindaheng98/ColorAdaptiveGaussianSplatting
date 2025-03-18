@@ -14,7 +14,15 @@ def expand_base_layer(layer: Layer, zero_mask: torch.Tensor):
     codes[~zero_mask] = layer.codes + (1 << layer.n_bit)
     codebook = torch.cat([torch.zeros(1, dtype=layer.codebook.dtype, device=layer.codebook.device), layer.codebook])
     cluster_centers = torch.cat([torch.zeros((1, layer.cluster_centers.shape[1]), dtype=layer.cluster_centers.dtype, device=layer.cluster_centers.device), layer.cluster_centers])
-    return Layer(codes=codes, codebook=codebook, cluster_centers=cluster_centers, n_bit=layer.n_bit + 1, n_leaf=layer.n_leaf + 1)
+    return layer._replace(codes=codes, codebook=codebook, cluster_centers=cluster_centers)
+
+
+def shrink_base_layer(layer: Layer):
+    zero_mask = layer.codes == 0
+    codes = layer.codes[~zero_mask] - (1 << layer.n_bit)
+    codebook = layer.codebook[1:, ...]
+    cluster_centers = layer.cluster_centers[1:, ...]
+    return layer._replace(codes=codes, codebook=codebook, cluster_centers=cluster_centers), zero_mask
 
 
 def save_layer(layer: Layer, path: str):
@@ -100,7 +108,14 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         return extract_layers(layers)
 
     def extract_layers_exclude_zero(self, layers: List[Layer]):
-        return extract_layers(layers)
+        if len(layers) <= 0:
+            raise NotImplementedError("No layers to extract")
+        layer, zero_mask = shrink_base_layer(layers[0])
+        nonzero_ids, nonzero_codebook = extract_layers([layer] + layers[1:])
+        ids = torch.zeros(zero_mask.shape[0], dtype=nonzero_ids.dtype, device=nonzero_ids.device)
+        ids[~zero_mask] = nonzero_ids + 1
+        codebook = torch.cat([torch.zeros((1, *nonzero_codebook.shape[1:]), dtype=nonzero_codebook.dtype, device=nonzero_codebook.device), nonzero_codebook])
+        return ids, codebook
 
     def reproduce_clusters(self, layers_dict: Dict[str, List[Layer]]):
         ids_dict: Dict[str, torch.Tensor] = {}
