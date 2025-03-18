@@ -6,7 +6,7 @@ import torch
 from plyfile import PlyData, PlyElement
 from gaussian_splatting import GaussianModel
 from reduced_3dgs.quantization import ExcludeZeroSHQuantizer
-from scalablevq import encode_layers, Layer
+from scalablevq import encode_layers, extract_layers, Layer
 
 
 def expand_base_layer(layer: Layer, zero_mask: torch.Tensor):
@@ -96,6 +96,26 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         layers_dict["scaling"] = self.produce_layers_scaling(ids_dict["scaling"], codebook_dict["scaling"])
         return layers_dict
 
+    def extract_layers(self, layers: List[Layer]):
+        return extract_layers(layers)
+
+    def extract_layers_exclude_zero(self, layers: List[Layer]):
+        return extract_layers(layers)
+
+    def reproduce_clusters(self, layers_dict: Dict[str, List[Layer]]):
+        ids_dict: Dict[str, torch.Tensor] = {}
+        codebook_dict: Dict[str, torch.Tensor] = {}
+        ids_dict["features_dc"], codebook_dict["features_dc"] = self.extract_layers(layers_dict["features_dc"])
+        for sh_degree in range(self.model.max_sh_degree):
+            ids_dict[f'features_rest_{sh_degree}'], codebook_dict[f'features_rest_{sh_degree}'] = self.extract_layers_exclude_zero(layers_dict[f'features_rest_{sh_degree}'])
+
+        ids_dict["rotation_re"], codebook_dict["rotation_re"] = self.extract_layers(layers_dict["rotation_re"])
+        ids_dict["rotation_im"], codebook_dict["rotation_im"] = self.extract_layers(layers_dict["rotation_im"])
+
+        ids_dict["opacity"], codebook_dict["opacity"] = self.extract_layers(layers_dict["opacity"])
+        ids_dict["scaling"], codebook_dict["scaling"] = self.extract_layers(layers_dict["scaling"])
+        return codebook_dict, ids_dict
+
     def save_quantized(self, ply_path: str):
         model = self.model
         codebook_dict, ids_dict = self.produce_clusters(self._codebook_dict)
@@ -150,3 +170,9 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
                 continue
             for i, layer in enumerate(layers[1:]):
                 save_layer(layer, os.path.splitext(ply_path)[0] + f".layer.{i + 1}.{key}.npz")
+
+        codebook_dict, ids_dict = self.reproduce_clusters(layers_dict)
+        return self.apply_clustering(codebook_dict, ids_dict)
+
+    def load_quantized(self, ply_path: str):
+        pass
