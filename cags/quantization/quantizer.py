@@ -45,7 +45,7 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         zeros_mask = ids == 0
         nonzero_values, nonzero_ids = values[~zeros_mask], ids[~zeros_mask]
         nonzero_codebook = codebook[nonzero_ids.unique()]
-        layers = encode_layers(nonzero_values, nonzero_ids, nonzero_codebook, self.n_bits_proposal_features_dc)
+        layers = encode_layers(nonzero_values, nonzero_ids, nonzero_codebook, n_bits_proposal)
         return [expand_base_layer(layers[0], zeros_mask)] + layers[1:]
 
     def produce_layers_features_dc(self, ids, codebook):
