@@ -214,7 +214,13 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
             for i, layer in enumerate(layers[1:]):
                 save_layer(layer, os.path.splitext(ply_path)[0] + f".layer.{i + 1}.{key}.npz")
 
+        # ids_dict_orig = ids_dict
         codebook_dict, ids_dict = self.layers2cluster(layers_dict)
+        # def diff(key): return print(key, (self._codebook_dict[key][ids_dict_orig[key]] - codebook_dict[key][ids_dict[key]]).abs().max())
+        # for key in layers_dict.keys():
+        #     if len(layers_dict[key]) <= 0:
+        #         continue
+        #     diff(key)
         return self.apply_clustering(codebook_dict, ids_dict)
 
     def load_quantized(self, ply_path: str):
@@ -222,14 +228,13 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         plydata = PlyData.read(ply_path)
         codebooks = np.load(os.path.splitext(ply_path)[0] + ".codebook.npz")
 
-        def reconstruct_base_layer(key, codes):
-            return Layer(
-                codes=codes,
-                codebook=torch.tensor(codebooks[f"{key}_codebook"], device=model._xyz.device),
-                cluster_centers=torch.tensor(codebooks[f"{key}_cluster_centers"], device=model._xyz.device),
-                n_bit=codebooks[f"{key}_n_bits"].item(),
-                n_leaf=codebooks[f"{key}_n_leafs"].item(),
-            )
+        def reconstruct_base_layer(key, codes): return Layer(
+            codes=codes,
+            codebook=torch.tensor(codebooks[f"{key}_codebook"], device=model._xyz.device),
+            cluster_centers=torch.tensor(codebooks[f"{key}_cluster_centers"], device=model._xyz.device),
+            n_bit=codebooks[f"{key}_n_bits"].item(),
+            n_leaf=codebooks[f"{key}_n_leafs"].item(),
+        )
 
         layers_dict = {}
         elements = plydata['vertex']
