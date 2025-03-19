@@ -35,6 +35,17 @@ def save_layer(layer: Layer, path: str):
         n_leaf=layer.n_leaf)
 
 
+def load_layer(path: str, device: torch.device):
+    layer = np.load(path)
+    return Layer(
+        codes=torch.tensor(layer["codes"], device=device),
+        codebook=torch.tensor(layer["codebook"], device=device),
+        cluster_centers=torch.tensor(layer["cluster_centers"], device=device),
+        n_bit=layer["n_bit"].item(),
+        n_leaf=layer["n_leaf"].item(),
+    )
+
+
 class ScalableQuantizer(ExcludeZeroSHQuantizer):
     def __init__(
         self, model: GaussianModel,
@@ -227,9 +238,20 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         layers_dict["rotation_im"] = [reconstruct_base_layer("rotation_im", torch.tensor(elements["rot_im"].copy(), **kwargs))]
         layers_dict["opacity"] = [reconstruct_base_layer("opacity", torch.tensor(elements["opacity"].copy(), **kwargs))]
         layers_dict["scaling"] = [reconstruct_base_layer("scaling", torch.tensor(elements["scale"].copy(), **kwargs))]
-        layers_dict["features_dc"] = [reconstruct_base_layer("features_dc", torch.tensor(elements["f_dc"].copy(), **kwargs).unsqueeze(-1))]
+        layers_dict["features_dc"] = [reconstruct_base_layer("features_dc", torch.tensor(elements["f_dc"].copy(), **kwargs))]
         for sh_degree in range(model.max_sh_degree):
             if not set(f'f_rest_{sh_degree}_{ch}' for ch in range(3)).issubset(prop.name for prop in elements.properties):
+                layers_dict[f'features_rest_{sh_degree}'] = []
                 continue
-            layers_dict[f'features_rest_{sh_degree}'] = [reconstruct_base_layer(f'features_rest_{sh_degree}', torch.tensor(np.stack([elements[f'f_rest_{sh_degree}_{ch}'] for ch in range(3)], axis=1), **kwargs))]
-        pass
+            features_rest = torch.tensor(np.stack([elements[f'f_rest_{sh_degree}_{ch}'] for ch in range(3)], axis=1), **kwargs)
+            layers_dict[f'features_rest_{sh_degree}'] = [reconstruct_base_layer(f'features_rest_{sh_degree}', features_rest.reshape(-1))]
+        for key in layers_dict.keys():
+            if len(layers_dict[key]) <= 0:
+                continue
+            i = 0
+            while os.path.exists(os.path.splitext(ply_path)[0] + f".layer.{i + 1}.{key}.npz"):
+                layers_dict[key].append(load_layer(os.path.splitext(ply_path)[0] + f".layer.{i + 1}.{key}.npz", device=model._xyz.device))
+                i += 1
+
+        codebook_dict, ids_dict = self.layers2cluster(layers_dict)
+        return self.apply_clustering(codebook_dict, ids_dict)
