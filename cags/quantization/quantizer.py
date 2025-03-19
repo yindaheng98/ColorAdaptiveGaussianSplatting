@@ -192,7 +192,9 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         # save base layer codebooks
         codebooks = {f"{key}_codebook": layers[0].codebook.cpu().numpy() for key, layers in layers_dict.items() if len(layers) > 0}
         cluster_centers = {f"{key}_cluster_centers": layers[0].cluster_centers.cpu().numpy() for key, layers in layers_dict.items() if len(layers) > 0}
-        np.savez_compressed(os.path.splitext(ply_path)[0] + ".codebook.npz", **codebooks, **cluster_centers)
+        n_bits = {f"{key}_n_bits": layers[0].n_bit for key, layers in layers_dict.items() if len(layers) > 0}
+        n_leafs = {f"{key}_n_leafs": layers[0].n_leaf for key, layers in layers_dict.items() if len(layers) > 0}
+        np.savez_compressed(os.path.splitext(ply_path)[0] + ".codebook.npz", **codebooks, **cluster_centers, **n_bits, **n_leafs)
 
         # save other layers
         for key, layers in layers_dict.items():
@@ -205,4 +207,29 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         return self.apply_clustering(codebook_dict, ids_dict)
 
     def load_quantized(self, ply_path: str):
+        model = self.model
+        plydata = PlyData.read(ply_path)
+        codebooks = np.load(os.path.splitext(ply_path)[0] + ".codebook.npz")
+
+        def reconstruct_base_layer(key, codes):
+            return Layer(
+                codes=codes,
+                codebook=torch.tensor(codebooks[f"{key}_codebook"], device=model._xyz.device),
+                cluster_centers=torch.tensor(codebooks[f"{key}_cluster_centers"], device=model._xyz.device),
+                n_bit=codebooks[f"{key}_n_bits"].item(),
+                n_leaf=codebooks[f"{key}_n_leafs"].item(),
+            )
+
+        layers_dict = {}
+        elements = plydata['vertex']
+        kwargs = dict(dtype=torch.long, device=model._xyz.device)
+        layers_dict["rotation_re"] = [reconstruct_base_layer("rotation_re", torch.tensor(elements["rot_re"].copy(), **kwargs))]
+        layers_dict["rotation_im"] = [reconstruct_base_layer("rotation_im", torch.tensor(elements["rot_im"].copy(), **kwargs))]
+        layers_dict["opacity"] = [reconstruct_base_layer("opacity", torch.tensor(elements["opacity"].copy(), **kwargs))]
+        layers_dict["scaling"] = [reconstruct_base_layer("scaling", torch.tensor(elements["scale"].copy(), **kwargs))]
+        layers_dict["features_dc"] = [reconstruct_base_layer("features_dc", torch.tensor(elements["f_dc"].copy(), **kwargs).unsqueeze(-1))]
+        for sh_degree in range(model.max_sh_degree):
+            if not set(f'f_rest_{sh_degree}_{ch}' for ch in range(3)).issubset(prop.name for prop in elements.properties):
+                continue
+            layers_dict[f'features_rest_{sh_degree}'] = [reconstruct_base_layer(f'features_rest_{sh_degree}', torch.tensor(np.stack([elements[f'f_rest_{sh_degree}_{ch}'] for ch in range(3)], axis=1), **kwargs))]
         pass
