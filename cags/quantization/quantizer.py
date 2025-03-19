@@ -56,12 +56,14 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         self.n_bits_proposal_features_rest = [(n_bits_proposal_features_rest[i] if len(n_bits_proposal_features_rest) > i else n_bits_proposal.copy()) for i in range(model.max_sh_degree)]
 
     def encode_layers(self, values: torch.Tensor, ids: torch.Tensor, codebook: torch.Tensor, n_bits_proposal: List[int]):
+        # return encode_layers(values, ids, codebook, n_bits_proposal, visualize=values.shape[1] == 3)  # debug
         return encode_layers(values, ids, codebook, n_bits_proposal)
 
     def encode_layers_exclude_zero(self, values: torch.Tensor, ids: torch.Tensor, codebook: torch.Tensor, n_bits_proposal: List[int]):
         zeros_mask = ids == 0
         nonzero_values, nonzero_ids = values[~zeros_mask], ids[~zeros_mask]
         nonzero_codebook = codebook[nonzero_ids.unique()]
+        # layers = encode_layers(nonzero_values, nonzero_ids, nonzero_codebook, n_bits_proposal, visualize=values.shape[1] == 3)  # debug
         layers = encode_layers(nonzero_values, nonzero_ids, nonzero_codebook, n_bits_proposal)
         return [expand_base_layer(layers[0], zeros_mask)] + layers[1:]
 
