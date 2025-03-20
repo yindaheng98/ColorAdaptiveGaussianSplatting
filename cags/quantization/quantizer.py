@@ -77,6 +77,8 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         zeros_mask = ids == 0
         nonzero_values, nonzero_ids = values[~zeros_mask], ids[~zeros_mask]
         nonzero_codebook = codebook[nonzero_ids.unique()]
+        nonzero_ids -= 1
+        # assert (nonzero_codebook[nonzero_ids] == codebook[ids][~zeros_mask]).all() # debug
         # layers = encode_layers(nonzero_values, nonzero_ids, nonzero_codebook, n_bits_proposal, visualize=values.shape[1] == 3)  # debug
         layers = encode_layers(nonzero_values, nonzero_ids, nonzero_codebook, n_bits_proposal)
         return [expand_base_layer(layers[0], zeros_mask)] + layers[1:]
@@ -217,11 +219,10 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
 
         # ids_dict_orig = ids_dict
         codebook_dict, ids_dict = self.layers2cluster(layers_dict)
-        # def diff(key): return print(key, (self._codebook_dict[key][ids_dict_orig[key]] - codebook_dict[key][ids_dict[key]]).abs().max())
         # for key in layers_dict.keys():
         #     if len(layers_dict[key]) <= 0:
         #         continue
-        #     diff(key)
+        #     print(key, (self._codebook_dict[key][ids_dict_orig[key]] - codebook_dict[key][ids_dict[key]]).abs().max())
         return self.apply_clustering(codebook_dict, ids_dict)
 
     def load_quantized(self, ply_path: str):
