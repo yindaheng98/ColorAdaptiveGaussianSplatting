@@ -34,12 +34,9 @@ if __name__ == "__main__":
     parser.add_argument("-i", "--iteration", default=30000, type=int)
     parser.add_argument("--sh_degree", type=int, default=3)
     parser.add_argument("--device", type=str, default="cuda")
-    parser.add_argument("--num_clusters", type=int, default=256)
-    parser.add_argument("--num_clusters_rotation_re", type=int, default=None)
-    parser.add_argument("--num_clusters_rotation_im", type=int, default=None)
-    parser.add_argument("--num_clusters_opacity", type=int, default=None)
-    parser.add_argument("--num_clusters_scaling", type=int, default=None)
-    parser.add_argument("--num_clusters_features_dc", type=int, default=None)
-    parser.add_argument("--num_clusters_features_rest", default=[], action='append', type=int)
+    parser.add_argument("-o", "--option", default=[], action='append', type=str)
     args = parser.parse_args()
-    quantize(**vars(args))
+    configs = {o.split("=", 1)[0]: eval(o.split("=", 1)[1]) for o in args.option}
+    quantize(
+        source=args.source, destination=args.destination, iteration=args.iteration, sh_degree=args.sh_degree,
+        device=args.device, **configs)
