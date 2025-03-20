@@ -1,6 +1,6 @@
 import os
 import math
-from typing import List, Dict
+from typing import Callable, List, Dict
 import numpy as np
 import torch
 from plyfile import PlyData, PlyElement
@@ -49,38 +49,52 @@ def load_layer(path: str, device: torch.device):
 class ScalableQuantizer(ExcludeZeroSHQuantizer):
     def __init__(
         self, model: GaussianModel,
-        n_bits_proposal: List[int] = [4, 2, 2, 2, 2],
-        n_bits_proposal_rotation_re: List[int] = None,
-        n_bits_proposal_rotation_im: List[int] = None,
-        n_bits_proposal_opacity: List[int] = None,
-        n_bits_proposal_scaling: List[int] = None,
-        n_bits_proposal_features_dc: List[int] = None,
-        n_bits_proposal_features_rest: List[List[int]] = [],
+        n_bit_baselayer: int = 4,
+        n_bits_proposal: int | List[int] | Callable[[int, torch.Tensor, torch.Tensor], List[int]] = [2, 2, 2, 2],
+        n_bit_baselayer_rotation_re: int = None,
+        n_bits_proposal_rotation_re: int | List[int] | Callable[[int, torch.Tensor, torch.Tensor], List[int]] = None,
+        n_bit_baselayer_rotation_im: int = None,
+        n_bits_proposal_rotation_im: int | List[int] | Callable[[int, torch.Tensor, torch.Tensor], List[int]] = None,
+        n_bit_baselayer_opacity: int = None,
+        n_bits_proposal_opacity: int | List[int] | Callable[[int, torch.Tensor, torch.Tensor], List[int]] = None,
+        n_bit_baselayer_scaling: int = None,
+        n_bits_proposal_scaling: int | List[int] | Callable[[int, torch.Tensor, torch.Tensor], List[int]] = None,
+        n_bit_baselayer_features_dc: int = None,
+        n_bits_proposal_features_dc: int | List[int] | Callable[[int, torch.Tensor, torch.Tensor], List[int]] = None,
+        n_bit_baselayer_features_rest: List[int] = [],
+        n_bits_proposal_features_rest: List[int] | List[int] | List[Callable[[int, torch.Tensor, torch.Tensor], List[int]]] = [],
         **kwargs
     ):
         super().__init__(model=model, **kwargs)
-        self.n_bits_proposal_rotation_re = n_bits_proposal_rotation_re or n_bits_proposal.copy()
-        self.n_bits_proposal_rotation_im = n_bits_proposal_rotation_im or n_bits_proposal.copy()
-        self.n_bits_proposal_opacity = n_bits_proposal_opacity or n_bits_proposal.copy()
-        self.n_bits_proposal_scaling = n_bits_proposal_scaling or n_bits_proposal.copy()
-        self.n_bits_proposal_features_dc = n_bits_proposal_features_dc or n_bits_proposal.copy()
-        self.n_bits_proposal_features_rest = [(n_bits_proposal_features_rest[i] if len(n_bits_proposal_features_rest) > i else n_bits_proposal.copy()) for i in range(model.max_sh_degree)]
+        self.n_bit_baselayer = n_bit_baselayer
+        self.n_bits_proposal_rotation_re = n_bits_proposal_rotation_re or n_bits_proposal
+        self.n_bit_baselayer_rotation_re = n_bit_baselayer_rotation_re or n_bit_baselayer
+        self.n_bits_proposal_rotation_im = n_bits_proposal_rotation_im or n_bits_proposal
+        self.n_bit_baselayer_rotation_im = n_bit_baselayer_rotation_im or n_bit_baselayer
+        self.n_bits_proposal_opacity = n_bits_proposal_opacity or n_bits_proposal
+        self.n_bit_baselayer_opacity = n_bit_baselayer_opacity or n_bit_baselayer
+        self.n_bits_proposal_scaling = n_bits_proposal_scaling or n_bits_proposal
+        self.n_bit_baselayer_scaling = n_bit_baselayer_scaling or n_bit_baselayer
+        self.n_bits_proposal_features_dc = n_bits_proposal_features_dc or n_bits_proposal
+        self.n_bit_baselayer_features_dc = n_bit_baselayer_features_dc or n_bit_baselayer
+        self.n_bits_proposal_features_rest = [((n_bits_proposal_features_rest[i] or n_bits_proposal) if len(n_bits_proposal_features_rest) > i else n_bits_proposal) for i in range(model.max_sh_degree)]
+        self.n_bit_baselayer_features_rest = [((n_bit_baselayer_features_rest[i] or n_bit_baselayer) if len(n_bit_baselayer_features_rest) > i else n_bit_baselayer) for i in range(model.max_sh_degree)]
 
-    def encode_layers(self, values: torch.Tensor, ids: torch.Tensor, codebook: torch.Tensor, n_bits_proposal: List[int]):
-        # return encode_layers(values, ids, codebook, n_bits_proposal, visualize=values.shape[1] == 3)  # debug
-        return encode_layers(values, ids, codebook, n_bits_proposal)
+    def encode_layers(self, values: torch.Tensor, ids: torch.Tensor, codebook: torch.Tensor, n_bit_baselayer: int, n_bits_proposal: int | List[int] | Callable[[int, torch.Tensor, torch.Tensor], List[int]]):
+        # return encode_layers(values, ids, codebook, n_bit_baselayer, n_bits_proposal, visualize=values.shape[1] == 3)  # debug
+        return encode_layers(values, ids, codebook, n_bit_baselayer, n_bits_proposal)
 
     def extract_layers(self, layers: List[Layer]):
         return extract_layers(layers)
 
-    def encode_layers_exclude_zero(self, values: torch.Tensor, ids: torch.Tensor, codebook: torch.Tensor, n_bits_proposal: List[int]):
+    def encode_layers_exclude_zero(self, values: torch.Tensor, ids: torch.Tensor, codebook: torch.Tensor, n_bit_baselayer: int, n_bits_proposal: int | List[int] | Callable[[int, torch.Tensor, torch.Tensor], List[int]]):
         zeros_mask = ids == 0
         nonzero_values, nonzero_ids = values[~zeros_mask], ids[~zeros_mask]
         nonzero_codebook = codebook[nonzero_ids.unique()]
         nonzero_ids -= 1
         # assert (nonzero_codebook[nonzero_ids] == codebook[ids][~zeros_mask]).all() # debug
-        # layers = encode_layers(nonzero_values, nonzero_ids, nonzero_codebook, n_bits_proposal, visualize=values.shape[1] == 3)  # debug
-        layers = encode_layers(nonzero_values, nonzero_ids, nonzero_codebook, n_bits_proposal)
+        # layers = encode_layers(nonzero_values, nonzero_ids, nonzero_codebook, n_bit_baselayer, n_bits_proposal, visualize=values.shape[1] == 3)  # debug
+        layers = encode_layers(nonzero_values, nonzero_ids, nonzero_codebook, n_bit_baselayer, n_bits_proposal)
         return [expand_base_layer(layers[0], zeros_mask)] + layers[1:]
 
     def extract_layers_exclude_zero(self, layers: List[Layer]):
@@ -92,7 +106,7 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         return ids, codebook
 
     def cluster2layers_features_dc(self, ids, codebook):
-        return self.encode_layers(self.model._features_dc.detach().squeeze(1), ids, codebook, self.n_bits_proposal_features_dc)
+        return self.encode_layers(self.model._features_dc.detach().squeeze(1), ids, codebook, self.n_bit_baselayer_features_dc, self.n_bits_proposal_features_dc)
 
     def layers2cluster_features_dc(self, layers: List[Layer]):
         ids, codebook = self.extract_layers(layers)
@@ -105,7 +119,7 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         features_rest_flatten = self.model._features_rest.detach().transpose(1, 2).flatten(0, 1)
         features_rest = features_rest_flatten[:, sh_idx_start:sh_idx_end]
         ids_reshaped = ids.reshape(ids.shape[0] * 3)
-        layers = self.encode_layers_exclude_zero(features_rest, ids_reshaped, codebook, self.n_bits_proposal_features_rest[sh_degree])
+        layers = self.encode_layers_exclude_zero(features_rest, ids_reshaped, codebook, self.n_bit_baselayer_features_rest[sh_degree], self.n_bits_proposal_features_rest[sh_degree])
         return layers
 
     def layers2cluster_features_rest(self, sh_degree: int, layers: List[Layer], reference_ids: torch.Tensor, reference_codebook: torch.Tensor):
@@ -119,16 +133,16 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         return ids, codebook
 
     def cluster2layers_rotation_re(self, ids, codebook):
-        return self.encode_layers(self.model.get_rotation.detach()[:, 0:1], ids, codebook, self.n_bits_proposal_rotation_re)
+        return self.encode_layers(self.model.get_rotation.detach()[:, 0:1], ids, codebook, self.n_bit_baselayer_rotation_re, self.n_bits_proposal_rotation_re)
 
     def cluster2layers_rotation_im(self, ids, codebook):
-        return self.encode_layers(self.model.get_rotation.detach()[:, 1:], ids, codebook, self.n_bits_proposal_rotation_im)
+        return self.encode_layers(self.model.get_rotation.detach()[:, 1:], ids, codebook, self.n_bit_baselayer_rotation_im, self.n_bits_proposal_rotation_im)
 
     def cluster2layers_opacity(self, ids, codebook):
-        return self.encode_layers(self.model._opacity.detach(), ids, codebook, self.n_bits_proposal_opacity)
+        return self.encode_layers(self.model._opacity.detach(), ids, codebook, self.n_bit_baselayer_opacity, self.n_bits_proposal_opacity)
 
     def cluster2layers_scaling(self, ids, codebook):
-        return self.encode_layers(self.model._scaling.detach(), ids, codebook, self.n_bits_proposal_scaling)
+        return self.encode_layers(self.model._scaling.detach(), ids, codebook, self.n_bit_baselayer_scaling, self.n_bits_proposal_scaling)
 
     def cluster2layers(self, codebook_dict: Dict[str, torch.Tensor], ids_dict: Dict[str, torch.Tensor]):
         layers_dict: Dict[str, List[Layer]] = {}
@@ -215,7 +229,7 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
             if len(layers) <= 1:
                 continue
             for i, layer in enumerate(layers[1:]):
-                save_layer(layer, os.path.splitext(ply_path)[0] + f".layer.{i + 1}.{key}.npz")
+                save_layer(layer, os.path.splitext(ply_path)[0] + f".layer.{key}.{i + 1}.npz")
 
         # ids_dict_orig = ids_dict
         codebook_dict, ids_dict = self.layers2cluster(layers_dict)
@@ -256,8 +270,8 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
             if len(layers_dict[key]) <= 0:
                 continue
             i = 0
-            while os.path.exists(os.path.splitext(ply_path)[0] + f".layer.{i + 1}.{key}.npz"):
-                layers_dict[key].append(load_layer(os.path.splitext(ply_path)[0] + f".layer.{i + 1}.{key}.npz", device=model._xyz.device))
+            while os.path.exists(os.path.splitext(ply_path)[0] + f".layer.{key}.{i + 1}.npz"):
+                layers_dict[key].append(load_layer(os.path.splitext(ply_path)[0] + f".layer.{key}.{i + 1}.npz", device=model._xyz.device))
                 i += 1
 
         codebook_dict, ids_dict = self.layers2cluster(layers_dict)

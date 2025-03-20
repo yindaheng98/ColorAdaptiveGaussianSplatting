@@ -2,6 +2,7 @@ import os
 import shutil
 from gaussian_splatting import GaussianModel
 from cags.quantization import ScalableQuantizer
+from scalablevq import n_bits_proposal_balanced_clusters, n_bits_proposal_balanced_values
 
 
 def copy_not_exists(source, destination):
