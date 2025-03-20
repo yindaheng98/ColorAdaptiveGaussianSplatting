@@ -70,6 +70,9 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         # return encode_layers(values, ids, codebook, n_bits_proposal, visualize=values.shape[1] == 3)  # debug
         return encode_layers(values, ids, codebook, n_bits_proposal)
 
+    def extract_layers(self, layers: List[Layer]):
+        return extract_layers(layers)
+
     def encode_layers_exclude_zero(self, values: torch.Tensor, ids: torch.Tensor, codebook: torch.Tensor, n_bits_proposal: List[int]):
         zeros_mask = ids == 0
         nonzero_values, nonzero_ids = values[~zeros_mask], ids[~zeros_mask]
@@ -78,8 +81,20 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         layers = encode_layers(nonzero_values, nonzero_ids, nonzero_codebook, n_bits_proposal)
         return [expand_base_layer(layers[0], zeros_mask)] + layers[1:]
 
+    def extract_layers_exclude_zero(self, layers: List[Layer]):
+        layer, zero_mask = shrink_base_layer(layers[0])
+        nonzero_ids, nonzero_codebook = extract_layers([layer] + layers[1:])
+        ids = torch.zeros(zero_mask.shape[0], dtype=nonzero_ids.dtype, device=nonzero_ids.device)
+        ids[~zero_mask] = nonzero_ids + 1
+        codebook = torch.cat([torch.zeros((1, *nonzero_codebook.shape[1:]), dtype=nonzero_codebook.dtype, device=nonzero_codebook.device), nonzero_codebook])
+        return ids, codebook
+
     def cluster2layers_features_dc(self, ids, codebook):
         return self.encode_layers(self.model._features_dc.detach().squeeze(1), ids, codebook, self.n_bits_proposal_features_dc)
+
+    def layers2cluster_features_dc(self, layers: List[Layer]):
+        ids, codebook = self.extract_layers(layers)
+        return ids.unsqueeze(1), codebook
 
     def cluster2layers_features_rest(self, sh_degree, ids, codebook):
         if codebook.shape[0] <= 1:  # all zero from ExcludeZeroQuantizer.generate_codebook
@@ -90,6 +105,16 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         ids_reshaped = ids.reshape(ids.shape[0] * 3)
         layers = self.encode_layers_exclude_zero(features_rest, ids_reshaped, codebook, self.n_bits_proposal_features_rest[sh_degree])
         return layers
+
+    def layers2cluster_features_rest(self, sh_degree: int, layers: List[Layer], reference_ids: torch.Tensor, reference_codebook: torch.Tensor):
+        if len(layers) <= 0:  # all zero from ExcludeZeroQuantizer.generate_codebook
+            sh_idx_start, sh_idx_end = (sh_degree + 1) ** 2 - 1, (sh_degree + 2) ** 2 - 1
+            ids = torch.zeros((reference_ids.shape[0], 3), dtype=reference_ids.dtype, device=reference_ids.device)
+            codebook = torch.zeros((1, sh_idx_end - sh_idx_start), dtype=reference_codebook.dtype, device=reference_codebook.device)
+            return ids, codebook
+        ids_reshaped, codebook = self.extract_layers_exclude_zero(layers)
+        ids = ids_reshaped.reshape(reference_ids.shape[0], 3)
+        return ids, codebook
 
     def cluster2layers_rotation_re(self, ids, codebook):
         return self.encode_layers(self.model.get_rotation.detach()[:, 0:1], ids, codebook, self.n_bits_proposal_rotation_re)
@@ -116,30 +141,6 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         layers_dict["opacity"] = self.cluster2layers_opacity(ids_dict["opacity"], codebook_dict["opacity"])
         layers_dict["scaling"] = self.cluster2layers_scaling(ids_dict["scaling"], codebook_dict["scaling"])
         return layers_dict
-
-    def extract_layers(self, layers: List[Layer]):
-        return extract_layers(layers)
-
-    def layers2cluster_features_dc(self, layers: List[Layer]):
-        ids, codebook = self.extract_layers(layers)
-        return ids.unsqueeze(1), codebook
-
-    def extract_layers_exclude_zero(self, layers: List[Layer]):
-        layer, zero_mask = shrink_base_layer(layers[0])
-        nonzero_ids, nonzero_codebook = extract_layers([layer] + layers[1:])
-        ids = torch.zeros(zero_mask.shape[0], dtype=nonzero_ids.dtype, device=nonzero_ids.device)
-        ids[~zero_mask] = nonzero_ids + 1
-        codebook = torch.cat([torch.zeros((1, *nonzero_codebook.shape[1:]), dtype=nonzero_codebook.dtype, device=nonzero_codebook.device), nonzero_codebook])
-        ids = ids.reshape(ids.shape[0] // 3, 3)
-        return ids, codebook
-
-    def layers2cluster_features_rest(self, sh_degree: int, layers: List[Layer], reference_ids: torch.Tensor, reference_codebook: torch.Tensor):
-        sh_idx_start, sh_idx_end = (sh_degree + 1) ** 2 - 1, (sh_degree + 2) ** 2 - 1
-        if len(layers) <= 0:  # all zero from ExcludeZeroQuantizer.generate_codebook
-            ids = torch.zeros((reference_ids.shape[0], 3), dtype=reference_ids.dtype, device=reference_ids.device)
-            codebook = torch.zeros((1, sh_idx_end - sh_idx_start), dtype=reference_codebook.dtype, device=reference_codebook.device)
-            return ids, codebook
-        return self.extract_layers_exclude_zero(layers)
 
     def layers2cluster(self, layers_dict: Dict[str, List[Layer]]):
         ids_dict: Dict[str, torch.Tensor] = {}
