@@ -40,6 +40,6 @@ if __name__ == "__main__":
     parser.add_argument("--num_clusters_opacity", type=int, default=None)
     parser.add_argument("--num_clusters_scaling", type=int, default=None)
     parser.add_argument("--num_clusters_features_dc", type=int, default=None)
-    parser.add_argument("--num_clusters_features_rest", type=int, nargs='+', default=[])
+    parser.add_argument("--num_clusters_features_rest", default=[], action='append', type=int)
     args = parser.parse_args()
     quantize(**vars(args))
