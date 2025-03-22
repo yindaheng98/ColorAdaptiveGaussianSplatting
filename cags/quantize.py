@@ -18,11 +18,13 @@ def quantize(source, destination, iteration, sh_degree, device, **kwargs):
     copy_not_exists(os.path.join(source, "cameras.json"), os.path.join(destination, "cameras.json"))
     input = os.path.join(source, "point_cloud", "iteration_" + str(iteration), "point_cloud.ply")
     output = os.path.join(destination, "point_cloud", "iteration_" + str(iteration), "point_cloud_quantized.ply")
+    shutil.rmtree(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)))
     os.makedirs(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), exist_ok=True)
     gaussians = GaussianModel(sh_degree).to(device)
     gaussians.load_ply(input)
     quantizer = ScalableQuantizer(gaussians, **kwargs)
     gaussians = quantizer.save_quantized(output)
+    gaussians = quantizer.load_quantized(output)
     output = os.path.join(destination, "point_cloud", "iteration_" + str(iteration), "point_cloud.ply")
     gaussians.save_ply(output)
 
