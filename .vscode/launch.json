@@ -97,5 +97,24 @@
                 "-on_bits_proposal_features_rest=[n_bits_proposal_balanced_values(6), n_bits_proposal_balanced_values(5), n_bits_proposal_balanced_values(4)]",
             ]
         },
+        {
+            "name": "draco to 3dgs",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "tools/draco_to_3dgs.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "args": [
+                "-d",
+                "output/truck-draco",
+                "--sh_degree",
+                "3",
+                "--iteration",
+                "30000",
+            ]
+        },
     ]
 }
