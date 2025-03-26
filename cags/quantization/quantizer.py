@@ -255,7 +255,7 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         #     print(key, (self._codebook_dict[key][ids_dict_orig[key]] - codebook_dict[key][ids_dict[key]]).abs().max())
         return self.apply_clustering(codebook_dict, ids_dict)
 
-    def load_quantized(self, ply_path: str):
+    def load_baselayer(self, ply_path: str):
         model = self.model
         plydata = PlyData.read(ply_path)
         codebooks = np.load(os.path.splitext(ply_path)[0] + ".codebook.npz")
@@ -282,6 +282,10 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
                 continue
             features_rest = torch.tensor(np.stack([elements[f'f_rest_{sh_degree}_{ch}'] for ch in range(3)], axis=1), **kwargs)
             layers_dict[f'features_rest_{sh_degree}'] = [reconstruct_base_layer(f'features_rest_{sh_degree}', features_rest.reshape(-1))]
+        return layers_dict
+
+    def load_enhencementlayers(self, ply_path: str, layers_dict: Dict[str, List[Layer]]):
+        model = self.model
         for key in layers_dict.keys():
             if len(layers_dict[key]) <= 0:
                 continue
@@ -289,6 +293,10 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
             while os.path.exists(os.path.splitext(ply_path)[0] + f".layer.{key}.{i + 1}.npz"):
                 layers_dict[key].append(load_layer(os.path.splitext(ply_path)[0] + f".layer.{key}.{i + 1}.npz", device=model._xyz.device))
                 i += 1
+        return layers_dict
 
+    def load_quantized(self, ply_path: str):
+        layers_dict = self.load_baselayer(ply_path)
+        layers_dict = self.load_enhencementlayers(ply_path, layers_dict)
         codebook_dict, ids_dict = self.layers2cluster(layers_dict)
         return self.apply_clustering(codebook_dict, ids_dict)
