@@ -25,16 +25,6 @@ def shrink_base_layer(layer: Layer):
     return layer._replace(codes=codes, codebook=codebook, cluster_centers=cluster_centers), zero_mask
 
 
-def save_layer(layer: Layer, path: str):
-    np.savez_compressed(
-        path,
-        codes=layer.codes.cpu().numpy(),
-        codebook=layer.codebook.cpu().numpy(),
-        cluster_centers=layer.cluster_centers.cpu().numpy(),
-        n_bit=layer.n_bit,
-        n_leaf=layer.n_leaf)
-
-
 def load_layer(path: str, device: torch.device):
     layer = np.load(path)
     return Layer(
@@ -174,7 +164,7 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         ids_dict["scaling"], codebook_dict["scaling"] = self.extract_layers(layers_dict["scaling"])
         return codebook_dict, ids_dict
 
-    def save_quantized_baselayer(self, ply_path: str, layers_dict: Dict[str, List[Layer]]):
+    def baselayer_ply_dtype(self, layers_dict: Dict[str, List[Layer]]):
         model = self.model
         dtype_full = [
             ('x', 'f4'), ('y', 'f4'), ('z', 'f4'),
@@ -194,6 +184,10 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
                 (f'f_rest_{sh_degree}_1', force_code_dtype),
                 (f'f_rest_{sh_degree}_2', force_code_dtype),
             ])
+        return dtype_full
+
+    def baselayer_ply_data(self, layers_dict: Dict[str, List[Layer]]):
+        model = self.model
         data_full = [
             *np.array_split(model._xyz.detach().cpu().numpy(), 3, axis=1),
             *np.array_split(torch.zeros_like(model._xyz).detach().cpu().numpy(), 3, axis=1),
@@ -208,12 +202,18 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
                 continue
             features_rest = layers_dict[f'features_rest_{sh_degree}'][0].codes.reshape(-1, 3).cpu().numpy()
             data_full.extend(np.array_split(features_rest, 3, axis=1))
+        return data_full
+
+    def save_baselayer_ply(self, ply_path: str, layers_dict: Dict[str, List[Layer]]):
+        dtype_full = self.baselayer_ply_dtype(layers_dict)
+        data_full = self.baselayer_ply_data(layers_dict)
 
         elements = np.rec.fromarrays([data.squeeze(-1) for data in data_full], dtype=dtype_full)
         el = PlyElement.describe(elements, 'vertex')
 
         PlyData([el]).write(ply_path)
 
+    def save_baselayer_codebook(self, ply_path: str, layers_dict: Dict[str, List[Layer]]):
         # save base layer codebooks
         codebooks = {f"{key}_codebook": layers[0].codebook.cpu().numpy() for key, layers in layers_dict.items() if len(layers) > 0}
         cluster_centers = {f"{key}_cluster_centers": layers[0].cluster_centers.cpu().numpy() for key, layers in layers_dict.items() if len(layers) > 0}
@@ -221,19 +221,32 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         n_leafs = {f"{key}_n_leafs": layers[0].n_leaf for key, layers in layers_dict.items() if len(layers) > 0}
         np.savez_compressed(os.path.splitext(ply_path)[0] + ".codebook.npz", **codebooks, **cluster_centers, **n_bits, **n_leafs)
 
-    def save_quantized_enhencementlayers(self, ply_path: str, layers_dict: Dict[str, List[Layer]]):
+    def save_baselayer(self, ply_path: str, layers_dict: Dict[str, List[Layer]]):
+        self.save_baselayer_ply(ply_path, layers_dict)
+        self.save_baselayer_codebook(ply_path, layers_dict)
+
+    def save_enhencementlayer(self, layer: Layer, path: str):
+        np.savez_compressed(
+            path,
+            codes=layer.codes.cpu().numpy(),
+            codebook=layer.codebook.cpu().numpy(),
+            cluster_centers=layer.cluster_centers.cpu().numpy(),
+            n_bit=layer.n_bit,
+            n_leaf=layer.n_leaf)
+
+    def save_enhencementlayers(self, ply_path: str, layers_dict: Dict[str, List[Layer]]):
         for key, layers in layers_dict.items():
             if len(layers) <= 1:
                 continue
             for i, layer in enumerate(layers[1:]):
-                save_layer(layer, os.path.splitext(ply_path)[0] + f".layer.{key}.{i + 1}.npz")
+                self.save_enhencementlayer(layer, os.path.splitext(ply_path)[0] + f".layer.{key}.{i + 1}.npz")
 
     def save_quantized(self, ply_path: str):
         codebook_dict, ids_dict = self.produce_clusters(self._codebook_dict)
         self._codebook_dict = codebook_dict
         layers_dict = self.cluster2layers(codebook_dict, ids_dict)
-        self.save_quantized_baselayer(ply_path, layers_dict)
-        self.save_quantized_enhencementlayers(ply_path, layers_dict)
+        self.save_baselayer(ply_path, layers_dict)
+        self.save_enhencementlayers(ply_path, layers_dict)
         # ids_dict_orig = ids_dict
         codebook_dict, ids_dict = self.layers2cluster(layers_dict)
         # for key in layers_dict.keys():
