@@ -255,44 +255,58 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         #     print(key, (self._codebook_dict[key][ids_dict_orig[key]] - codebook_dict[key][ids_dict[key]]).abs().max())
         return self.apply_clustering(codebook_dict, ids_dict)
 
+    def load_baselayer_attr(self, key, codes, codebooks):
+        device = self.model._xyz.device
+        return Layer(
+            codes=codes,
+            codebook=torch.tensor(codebooks[f"{key}_codebook"], device=device),
+            cluster_centers=torch.tensor(codebooks[f"{key}_cluster_centers"], device=device),
+            n_bit=codebooks[f"{key}_n_bits"].item(),
+            n_leaf=codebooks[f"{key}_n_leafs"].item(),
+        )
+
     def load_baselayer(self, ply_path: str):
         model = self.model
         plydata = PlyData.read(ply_path)
         codebooks = np.load(os.path.splitext(ply_path)[0] + ".codebook.npz")
 
-        def reconstruct_base_layer(key, codes): return Layer(
-            codes=codes,
-            codebook=torch.tensor(codebooks[f"{key}_codebook"], device=model._xyz.device),
-            cluster_centers=torch.tensor(codebooks[f"{key}_cluster_centers"], device=model._xyz.device),
-            n_bit=codebooks[f"{key}_n_bits"].item(),
-            n_leaf=codebooks[f"{key}_n_leafs"].item(),
-        )
-
         layers_dict = {}
         elements = plydata['vertex']
         kwargs = dict(dtype=torch.long, device=model._xyz.device)
-        layers_dict["rotation_re"] = [reconstruct_base_layer("rotation_re", torch.tensor(elements["rot_re"].copy(), **kwargs))]
-        layers_dict["rotation_im"] = [reconstruct_base_layer("rotation_im", torch.tensor(elements["rot_im"].copy(), **kwargs))]
-        layers_dict["opacity"] = [reconstruct_base_layer("opacity", torch.tensor(elements["opacity"].copy(), **kwargs))]
-        layers_dict["scaling"] = [reconstruct_base_layer("scaling", torch.tensor(elements["scale"].copy(), **kwargs))]
-        layers_dict["features_dc"] = [reconstruct_base_layer("features_dc", torch.tensor(elements["f_dc"].copy(), **kwargs))]
+        layers_dict["rotation_re"] = [self.load_baselayer_attr("rotation_re", torch.tensor(elements["rot_re"].copy(), **kwargs), codebooks=codebooks)]
+        layers_dict["rotation_im"] = [self.load_baselayer_attr("rotation_im", torch.tensor(elements["rot_im"].copy(), **kwargs), codebooks=codebooks)]
+        layers_dict["opacity"] = [self.load_baselayer_attr("opacity", torch.tensor(elements["opacity"].copy(), **kwargs), codebooks=codebooks)]
+        layers_dict["scaling"] = [self.load_baselayer_attr("scaling", torch.tensor(elements["scale"].copy(), **kwargs), codebooks=codebooks)]
+        layers_dict["features_dc"] = [self.load_baselayer_attr("features_dc", torch.tensor(elements["f_dc"].copy(), **kwargs), codebooks=codebooks)]
         for sh_degree in range(model.max_sh_degree):
             if not set(f'f_rest_{sh_degree}_{ch}' for ch in range(3)).issubset(prop.name for prop in elements.properties):
                 layers_dict[f'features_rest_{sh_degree}'] = []
                 continue
             features_rest = torch.tensor(np.stack([elements[f'f_rest_{sh_degree}_{ch}'] for ch in range(3)], axis=1), **kwargs)
-            layers_dict[f'features_rest_{sh_degree}'] = [reconstruct_base_layer(f'features_rest_{sh_degree}', features_rest.reshape(-1))]
+            layers_dict[f'features_rest_{sh_degree}'] = [self.load_baselayer_attr(f'features_rest_{sh_degree}', features_rest.reshape(-1), codebooks=codebooks)]
         return layers_dict
 
+    def load_enhencementlayer(self, ply_path: str, key: str):
+        device = self.model._xyz.device
+        i = 0
+        layers = []
+        while os.path.exists(os.path.splitext(ply_path)[0] + f".layer.{key}.{i + 1}.npz"):
+            layer = np.load(os.path.splitext(ply_path)[0] + f".layer.{key}.{i + 1}.npz")
+            layers.append(Layer(
+                codes=torch.tensor(layer["codes"], device=device),
+                codebook=torch.tensor(layer["codebook"], device=device),
+                cluster_centers=torch.tensor(layer["cluster_centers"], device=device),
+                n_bit=layer["n_bit"].item(),
+                n_leaf=layer["n_leaf"].item(),
+            ))
+            i += 1
+        return layers
+
     def load_enhencementlayers(self, ply_path: str, layers_dict: Dict[str, List[Layer]]):
-        model = self.model
         for key in layers_dict.keys():
             if len(layers_dict[key]) <= 0:
                 continue
-            i = 0
-            while os.path.exists(os.path.splitext(ply_path)[0] + f".layer.{key}.{i + 1}.npz"):
-                layers_dict[key].append(load_layer(os.path.splitext(ply_path)[0] + f".layer.{key}.{i + 1}.npz", device=model._xyz.device))
-                i += 1
+            layers_dict[key].extend(self.load_enhencementlayer(ply_path, key))
         return layers_dict
 
     def load_quantized(self, ply_path: str):
