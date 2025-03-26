@@ -87,6 +87,20 @@
             ]
         },
         {
+            "name": "compare ply",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "tools/compare_ply.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            },
+            "args": [
+                "output/truck-scalable/point_cloud/iteration_30000",
+            ]
+        },
+        {
             "name": "draco to 3dgs",
             "type": "debugpy",
             "request": "launch",
