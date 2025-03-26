@@ -1,5 +1,7 @@
 import math
+import os
 import platform
+import subprocess
 from typing import List, Dict
 import numpy as np
 from plyfile import PlyData, PlyElement
@@ -21,6 +23,7 @@ class DracoCompressedScalableQuantizer(ScalableQuantizer):
         self.draco_encoder_executable = draco_encoder_executable
         self.draco_decoder_executable = draco_decoder_executable
         self.draco_qp = draco_qp
+        self.draco_q = {}
 
     def baselayer_ply_dtype(self, layers_dict: Dict[str, List[Layer]]):
         model = self.model
@@ -46,6 +49,11 @@ class DracoCompressedScalableQuantizer(ScalableQuantizer):
                 (f'f_rest_{sh_degree}_1', force_code_dtype),
                 (f'f_rest_{sh_degree}_2', force_code_dtype),
             ])
+        self.draco_q['rotation'] = force_n_bit_rotation
+        self.draco_q['opacity'] = layers_dict['opacity'][0].n_bit
+        self.draco_q['scaling'] = layers_dict['scaling'][0].n_bit
+        self.draco_q['features_dc'] = layers_dict['features_dc'][0].n_bit
+        self.draco_q['features_rest'] = force_n_bit_features_rest
         return dtype_full
 
     def baselayer_ply_data(self, layers_dict: Dict[str, List[Layer]]):
@@ -62,7 +70,8 @@ class DracoCompressedScalableQuantizer(ScalableQuantizer):
         for sh_degree in range(model.max_sh_degree):
             if len(layers_dict[f"features_rest_{sh_degree}"]) <= 0:
                 features_rest = torch.zeros((model._xyz.shape[0], 3), dtype=torch.int).detach().cpu().numpy()
-            features_rest = layers_dict[f'features_rest_{sh_degree}'][0].codes.reshape(-1, 3).cpu().numpy()
+            else:
+                features_rest = layers_dict[f'features_rest_{sh_degree}'][0].codes.reshape(-1, 3).cpu().numpy()
             data_full.extend(np.array_split(features_rest, 3, axis=1))
         return data_full
 
@@ -74,3 +83,15 @@ class DracoCompressedScalableQuantizer(ScalableQuantizer):
         el = PlyElement.describe(elements, 'vertex')
 
         PlyData([el]).write(ply_path)
+
+        drc_path = os.path.splitext(ply_path)[0] + ".drc"
+        subprocess.check_call([
+            self.draco_encoder_executable,
+            "-i", ply_path, "-o", drc_path + ".drc",
+            "-qp", str(self.draco_qp),
+            "-qscale", str(self.draco_q['scaling']),
+            "-qrotation", str(self.draco_q['rotation']),
+            "-qopacity", str(self.draco_q['opacity']),
+            "-qfeaturedc", str(self.draco_q['features_dc']),
+            "-qfeaturerest", str(self.draco_q['features_rest']),
+        ])
