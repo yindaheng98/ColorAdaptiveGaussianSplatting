@@ -16,7 +16,7 @@
                 "-i",
                 "30000",
                 "--mode",
-                "densify-prune-shculling",
+                "camera-densify-prune-shculling",
             ]
         },
         {
