@@ -1,7 +1,7 @@
 import os
 import shutil
 from gaussian_splatting import GaussianModel
-from cags.quantization import ScalableQuantizer
+from cags.quantization import DracoCompressedScalableQuantizer
 from scalablevq import n_bits_proposal_balanced_clusters, n_bits_proposal_balanced_values
 
 
@@ -20,7 +20,7 @@ def quantize(source, destination, iteration, sh_degree, device, quantize, **kwar
     output = os.path.join(destination, "point_cloud", "iteration_" + str(iteration), "point_cloud_quantized.ply")
     gaussians = GaussianModel(sh_degree).to(device)
     gaussians.load_ply(input)
-    quantizer = ScalableQuantizer(gaussians, **kwargs)
+    quantizer = DracoCompressedScalableQuantizer(gaussians, **kwargs)
     if quantize:
         shutil.rmtree(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)))
         os.makedirs(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), exist_ok=True)

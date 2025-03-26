@@ -50,7 +50,7 @@
             "justMyCode": false,
             "args": [
                 "-s",
-                "output/truck",
+                "output/truck-reduced",
                 "-d",
                 "output/truck-scalable",
                 "-i",
@@ -78,7 +78,7 @@
             "justMyCode": false,
             "args": [
                 "-s",
-                "output/truck",
+                "output/truck-reduced",
                 "-d",
                 "output/truck-scalable",
                 "-i",
