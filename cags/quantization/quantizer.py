@@ -295,26 +295,43 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
             layers_dict[f'features_rest_{sh_degree}'] = [self.load_baselayer_attr(f'features_rest_{sh_degree}', features_rest.reshape(-1), codebooks=codebooks, device=device)]
         return layers_dict
 
-    def load_enhencementlayer(self, ply_path: str, key: str, device):
-        i = 0
-        layers = []
-        while os.path.exists(os.path.splitext(ply_path)[0] + f".layer.{key}.{i + 1}.npz"):
-            layer = np.load(os.path.splitext(ply_path)[0] + f".layer.{key}.{i + 1}.npz")
-            layers.append(Layer(
-                codes=torch.tensor(layer["codes"], device=device),
-                codebook=torch.tensor(layer["codebook"], device=device),
-                cluster_centers=torch.tensor(layer["cluster_centers"], device=device),
-                n_bit=layer["n_bit"].item(),
-                n_leaf=layer["n_leaf"].item(),
-            ))
-            i += 1
-        return layers
-
-    def load_enhencementlayers(self, ply_path: str, layers_dict: Dict[str, List[Layer]], device):
+    def load_enhencementlayer_codes(self, ply_path: str, layers_dict: Dict[str, List[Layer]], device):
         for key in layers_dict.keys():
             if len(layers_dict[key]) <= 0:
                 continue
-            layers_dict[key].extend(self.load_enhencementlayer(ply_path, key, device))
+            i = 1
+            while os.path.exists(os.path.splitext(ply_path)[0] + f".layer.{key}.{i}.codes.npz"):
+                layer = np.load(os.path.splitext(ply_path)[0] + f".layer.{key}.{i}.codes.npz")
+                layers_dict[key].append(Layer(
+                    codes=torch.tensor(layer["codes"], device=device),
+                    n_leaf=layer["n_leaf"].item(),
+                    codebook=None,
+                    cluster_centers=None,
+                    n_bit=None,
+                ))
+                i += 1
+        return layers_dict
+
+    def load_enhencementlayer_codebooks(self, ply_path: str, layers_dict: Dict[str, List[Layer]], device):
+        for key in layers_dict.keys():
+            if len(layers_dict[key]) <= 0:
+                continue
+            i = 1
+            while os.path.exists(os.path.splitext(ply_path)[0] + f".layer.{key}.{i}.codebook.npz"):
+                if len(layers_dict[key]) < i + 1:
+                    break
+                layer = np.load(os.path.splitext(ply_path)[0] + f".layer.{key}.{i}.codebook.npz")
+                layers_dict[key][i] = layers_dict[key][i]._replace(
+                    codebook=torch.tensor(layer["codebook"], device=device),
+                    cluster_centers=torch.tensor(layer["cluster_centers"], device=device),
+                    n_bit=layer["n_bit"].item(),
+                )
+                i += 1
+        return layers_dict
+
+    def load_enhencementlayers(self, ply_path: str, layers_dict: Dict[str, List[Layer]], device):
+        layers_dict = self.load_enhencementlayer_codes(ply_path, layers_dict, device)
+        layers_dict = self.load_enhencementlayer_codebooks(ply_path, layers_dict, device)
         return layers_dict
 
     def load_quantized(self, model: GaussianModel, ply_path: str):
