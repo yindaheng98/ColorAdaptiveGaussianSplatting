@@ -312,5 +312,5 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         device = model._xyz.device
         layers_dict = self.load_baselayer(model.max_sh_degree, ply_path, device)
         layers_dict = self.load_enhencementlayers(ply_path, layers_dict, device)
-        codebook_dict, ids_dict = self.layers2cluster(layers_dict, device)
+        codebook_dict, ids_dict = self.layers2cluster(model.max_sh_degree, layers_dict)
         return self.apply_clustering(model, codebook_dict, ids_dict)
