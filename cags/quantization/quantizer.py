@@ -165,6 +165,8 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         ids_dict["scaling"], codebook_dict["scaling"] = self.extract_layers(layers_dict["scaling"])
         return codebook_dict, ids_dict
 
+    # ---------------- save base layer ----------------
+
     def baselayer_ply_dtype(self, max_sh_degree: int, layers_dict: Dict[str, List[Layer]]):
         dtype_full = [
             ('x', 'f4'), ('y', 'f4'), ('z', 'f4'),
@@ -212,17 +214,26 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
 
         PlyData([el]).write(ply_path)
 
+    def save_baselayer_n_leaf(self, ply_path: str, layers_dict: Dict[str, List[Layer]]):
+        n_leafs = {key: layers[0].n_leaf for key, layers in layers_dict.items() if len(layers) > 0}
+        np.savez_compressed(os.path.splitext(ply_path)[0] + ".n_leaf.npz", **n_leafs)
+
+    def save_baselayer_codes(self, model: GaussianModel, ply_path: str, layers_dict: Dict[str, List[Layer]]):
+        self.save_baselayer_ply(model, ply_path, layers_dict)
+        self.save_baselayer_n_leaf(ply_path, layers_dict)
+
     def save_baselayer_codebook(self, ply_path: str, layers_dict: Dict[str, List[Layer]]):
         # save base layer codebooks
         codebooks = {f"{key}_codebook": layers[0].codebook.cpu().numpy() for key, layers in layers_dict.items() if len(layers) > 0}
         cluster_centers = {f"{key}_cluster_centers": layers[0].cluster_centers.cpu().numpy() for key, layers in layers_dict.items() if len(layers) > 0}
         n_bits = {f"{key}_n_bits": layers[0].n_bit for key, layers in layers_dict.items() if len(layers) > 0}
-        n_leafs = {f"{key}_n_leafs": layers[0].n_leaf for key, layers in layers_dict.items() if len(layers) > 0}
-        np.savez_compressed(os.path.splitext(ply_path)[0] + ".codebook.npz", **codebooks, **cluster_centers, **n_bits, **n_leafs)
+        np.savez_compressed(os.path.splitext(ply_path)[0] + ".codebook.npz", **codebooks, **cluster_centers, **n_bits)
 
     def save_baselayer(self, model: GaussianModel, ply_path: str, layers_dict: Dict[str, List[Layer]]):
-        self.save_baselayer_ply(model, ply_path, layers_dict)
+        self.save_baselayer_codes(model, ply_path, layers_dict)
         self.save_baselayer_codebook(ply_path, layers_dict)
+
+    # ---------------- save enhencement layers ----------------
 
     def save_enhencementlayers_codes(self, ply_path: str, layers_dict: Dict[str, List[Layer]]):
         for key, layers in layers_dict.items():
@@ -249,6 +260,8 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         self.save_enhencementlayers_codes(ply_path, layers_dict)
         self.save_enhencementlayers_codebook(ply_path, layers_dict)
 
+    # ---------------- save all quantized data ----------------
+
     def save_quantized(self, model: GaussianModel, ply_path: str):
         if self._codebook_dict == {}:
             codebook_dict, ids_dict = self.produce_clusters(model, self._codebook_dict)
@@ -266,6 +279,8 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         #         continue
         #     print(key, (self._codebook_dict[key][ids_dict_orig[key]] - codebook_dict[key][ids_dict[key]]).abs().max())
         return self.apply_clustering(model, codebook_dict, ids_dict)
+
+    # ---------------- load base layer ----------------
 
     def load_baselayer_attr(self, key, codes, codebooks, device):
         return Layer(
@@ -294,6 +309,8 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
             features_rest = torch.tensor(np.stack([elements[f'f_rest_{sh_degree}_{ch}'] for ch in range(3)], axis=1), dtype=torch.int64, device=device)
             layers_dict[f'features_rest_{sh_degree}'] = [self.load_baselayer_attr(f'features_rest_{sh_degree}', features_rest.reshape(-1), codebooks=codebooks, device=device)]
         return layers_dict
+
+    # ---------------- load enhencement layer ----------------
 
     def load_enhencementlayer_codes(self, ply_path: str, layers_dict: Dict[str, List[Layer]], device):
         for key in layers_dict.keys():
@@ -333,6 +350,8 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         layers_dict = self.load_enhencementlayer_codes(ply_path, layers_dict, device)
         layers_dict = self.load_enhencementlayer_codebooks(ply_path, layers_dict, device)
         return layers_dict
+
+    # ---------------- load all quantized data ----------------
 
     def load_quantized(self, model: GaussianModel, ply_path: str):
         device = model._xyz.device
