@@ -1,0 +1,44 @@
+import os
+import shutil
+from gaussian_splatting import GaussianModel
+from cags.tiling import MortonTiling
+
+
+def copy_not_exists(source, destination):
+    if os.path.exists(destination):
+        if os.path.samefile(source, destination):
+            return
+        os.remove(destination)
+    os.makedirs(os.path.dirname(destination), exist_ok=True)
+    shutil.copy(source, destination)
+
+
+def tile(source, destination, iteration, sh_degree, device, **kwargs):
+    copy_not_exists(os.path.join(source, "cfg_args"), os.path.join(destination, "cfg_args"))
+    copy_not_exists(os.path.join(source, "cameras.json"), os.path.join(destination, "cameras.json"))
+    input = os.path.join(source, "point_cloud", "iteration_" + str(iteration), "point_cloud.ply")
+    gaussians = GaussianModel(sh_degree).to(device)
+    gaussians.load_ply(input)
+    tiling = MortonTiling()
+    tiles = tiling.tiling(gaussians)
+    gaussians = tiling.stitching(tiles)
+    shutil.rmtree(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), ignore_errors=True)
+    os.makedirs(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), exist_ok=True)
+    output = os.path.join(destination, "point_cloud", "iteration_" + str(iteration), "point_cloud.ply")
+    gaussians.save_ply(output)
+
+
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-s", "--source", required=True, type=str)
+    parser.add_argument("-d", "--destination", required=True, type=str)
+    parser.add_argument("-i", "--iteration", default=30000, type=int)
+    parser.add_argument("--sh_degree", type=int, default=3)
+    parser.add_argument("--device", type=str, default="cuda")
+    parser.add_argument("-o", "--option", default=[], action='append', type=str)
+    args = parser.parse_args()
+    configs = {o.split("=", 1)[0]: eval(o.split("=", 1)[1]) for o in args.option}
+    tile(
+        source=args.source, destination=args.destination, iteration=args.iteration, sh_degree=args.sh_degree,
+        device=args.device, **configs)

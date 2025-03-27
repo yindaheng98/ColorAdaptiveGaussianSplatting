@@ -1,14 +1,37 @@
 import abc
+import copy
 from typing import List
+
+import torch
+import torch.nn as nn
 
 from gaussian_splatting.gaussian_model import GaussianModel
 
 
 class AbstractTiling(abc.ABC):
     @abc.abstractmethod
-    def tiling(self, model: GaussianModel) -> List[GaussianModel]:
+    def produce_tiling(self, model: GaussianModel) -> List[torch.Tensor]:
         raise NotImplementedError
 
-    @abc.abstractmethod
+    def pick_tile(self, model: GaussianModel, tile_gaussians_id: List[torch.Tensor]) -> List[GaussianModel]:
+        tile = copy.deepcopy(model)
+        tile._xyz = nn.Parameter(model._xyz[tile_gaussians_id])
+        tile._features_dc = nn.Parameter(model._features_dc[tile_gaussians_id])
+        tile._features_rest = nn.Parameter(model._features_rest[tile_gaussians_id])
+        tile._opacity = nn.Parameter(model._opacity[tile_gaussians_id])
+        tile._scaling = nn.Parameter(model._scaling[tile_gaussians_id])
+        tile._rotation = nn.Parameter(model._rotation[tile_gaussians_id])
+        return tile
+
+    def tiling(self, model: GaussianModel) -> List[GaussianModel]:
+        return [self.pick_tile(model, tile_gaussians_id) for tile_gaussians_id in self.produce_tiling(model)]
+
     def stitching(self, models: List[GaussianModel]) -> GaussianModel:
-        raise NotImplementedError
+        model = copy.deepcopy(models[0])
+        model._xyz = nn.Parameter(torch.cat([m._xyz for m in models], dim=0))
+        model._features_dc = nn.Parameter(torch.cat([m._features_dc for m in models], dim=0))
+        model._features_rest = nn.Parameter(torch.cat([m._features_rest for m in models], dim=0))
+        model._opacity = nn.Parameter(torch.cat([m._opacity for m in models], dim=0))
+        model._scaling = nn.Parameter(torch.cat([m._scaling for m in models], dim=0))
+        model._rotation = nn.Parameter(torch.cat([m._rotation for m in models], dim=0))
+        return model
