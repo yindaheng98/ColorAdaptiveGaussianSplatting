@@ -22,15 +22,15 @@ def quantize(source, destination, iteration, sh_degree, device, quantize, draco,
     gaussians = GaussianModel(sh_degree).to(device)
     gaussians.load_ply(input)
     if draco:
-        quantizer = DracoCompressedScalableQuantizer(gaussians, **kwargs)
+        quantizer = DracoCompressedScalableQuantizer(**kwargs)
     else:
-        quantizer = ScalableQuantizer(gaussians, **kwargs)
+        quantizer = ScalableQuantizer(**kwargs)
     if quantize:
         shutil.rmtree(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), ignore_errors=True)
         os.makedirs(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), exist_ok=True)
-        gaussians = quantizer.save_quantized(output)
+        gaussians = quantizer.save_quantized(gaussians, output)
     else:
-        gaussians = quantizer.load_quantized(output)
+        gaussians = quantizer.load_quantized(gaussians, output)
         output = os.path.join(destination, "point_cloud", "iteration_" + str(iteration), "point_cloud.ply")
         gaussians.save_ply(output)
 
