@@ -10,6 +10,7 @@ def copy_not_exists(source, destination):
         if os.path.samefile(source, destination):
             return
         os.remove(destination)
+    os.makedirs(os.path.dirname(destination), exist_ok=True)
     shutil.copy(source, destination)
 
 
@@ -25,7 +26,7 @@ def quantize(source, destination, iteration, sh_degree, device, quantize, draco,
     else:
         quantizer = ScalableQuantizer(gaussians, **kwargs)
     if quantize:
-        shutil.rmtree(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)))
+        shutil.rmtree(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), ignore_errors=True)
         os.makedirs(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), exist_ok=True)
         gaussians = quantizer.save_quantized(output)
     else:
