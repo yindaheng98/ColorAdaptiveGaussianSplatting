@@ -224,21 +224,30 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         self.save_baselayer_ply(model, ply_path, layers_dict)
         self.save_baselayer_codebook(ply_path, layers_dict)
 
-    def save_enhencementlayer(self, layer: Layer, path: str):
-        np.savez_compressed(
-            path,
-            codes=layer.codes.cpu().numpy(),
-            codebook=layer.codebook.cpu().numpy(),
-            cluster_centers=layer.cluster_centers.cpu().numpy(),
-            n_bit=layer.n_bit,
-            n_leaf=layer.n_leaf)
-
-    def save_enhencementlayers(self, ply_path: str, layers_dict: Dict[str, List[Layer]]):
+    def save_enhencementlayers_codes(self, ply_path: str, layers_dict: Dict[str, List[Layer]]):
         for key, layers in layers_dict.items():
             if len(layers) <= 1:
                 continue
             for i, layer in enumerate(layers[1:]):
-                self.save_enhencementlayer(layer, os.path.splitext(ply_path)[0] + f".layer.{key}.{i + 1}.npz")
+                np.savez_compressed(
+                    os.path.splitext(ply_path)[0] + f".layer.{key}.{i + 1}.codes.npz",
+                    codes=layer.codes.cpu().numpy(),
+                    n_leaf=layer.n_leaf)
+
+    def save_enhencementlayers_codebook(self, ply_path: str, layers_dict: Dict[str, List[Layer]]):
+        for key, layers in layers_dict.items():
+            if len(layers) <= 1:
+                continue
+            for i, layer in enumerate(layers[1:]):
+                np.savez_compressed(
+                    os.path.splitext(ply_path)[0] + f".layer.{key}.{i + 1}.codebook.npz",
+                    codebook=layer.codebook.cpu().numpy(),
+                    cluster_centers=layer.cluster_centers.cpu().numpy(),
+                    n_bit=layer.n_bit)
+
+    def save_enhencementlayers(self, ply_path: str, layers_dict: Dict[str, List[Layer]]):
+        self.save_enhencementlayers_codes(ply_path, layers_dict)
+        self.save_enhencementlayers_codebook(ply_path, layers_dict)
 
     def save_quantized(self, model: GaussianModel, ply_path: str):
         if self._codebook_dict == {}:
