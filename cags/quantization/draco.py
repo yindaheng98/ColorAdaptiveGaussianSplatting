@@ -87,7 +87,7 @@ class DracoCompressedScalableQuantizer(ScalableQuantizer):
         drc_path = os.path.splitext(ply_path)[0] + ".drc"
         subprocess.check_call([
             self.draco_encoder_executable,
-            "-i", ply_path, "-o", drc_path + ".drc",
+            "-i", ply_path, "-o", drc_path, "-cl", str(0),
             "-qp", str(self.draco_qp),
             "-qscale", str(self.draco_q['scaling']),
             "-qrotation", str(self.draco_q['rotation']),
@@ -95,3 +95,30 @@ class DracoCompressedScalableQuantizer(ScalableQuantizer):
             "-qfeaturedc", str(self.draco_q['features_dc']),
             "-qfeaturerest", str(self.draco_q['features_rest']),
         ])
+
+    def load_baselayer(self, ply_path: str):
+        drc_path = os.path.splitext(ply_path)[0] + ".drc"
+        extract_path = os.path.splitext(ply_path)[0] + ".drcdecode.ply"
+        subprocess.check_call([
+            self.draco_decoder_executable,
+            "-i", drc_path, "-o", extract_path,
+        ])
+        model = self.model
+        plydata = PlyData.read(extract_path)
+        codebooks = np.load(os.path.splitext(ply_path)[0] + ".codebook.npz")
+
+        layers_dict = {}
+        elements = plydata['vertex']
+        kwargs = dict(dtype=torch.long, device=model._xyz.device)
+        layers_dict["rotation_re"] = [self.load_baselayer_attr("rotation_re", torch.tensor(elements["rot_re"].copy(), **kwargs), codebooks=codebooks)]
+        layers_dict["rotation_im"] = [self.load_baselayer_attr("rotation_im", torch.tensor(elements["rot_im"].copy(), **kwargs), codebooks=codebooks)]
+        layers_dict["opacity"] = [self.load_baselayer_attr("opacity", torch.tensor(elements["opacity"].copy(), **kwargs), codebooks=codebooks)]
+        layers_dict["scaling"] = [self.load_baselayer_attr("scaling", torch.tensor(elements["scale"].copy(), **kwargs), codebooks=codebooks)]
+        layers_dict["features_dc"] = [self.load_baselayer_attr("features_dc", torch.tensor(elements["f_dc"].copy(), **kwargs), codebooks=codebooks)]
+        for sh_degree in range(model.max_sh_degree):
+            if not set(f'features_rest_{sh_degree}_{item}' for item in ['codebook', 'cluster_centers', 'n_bits', 'n_leafs']).issubset(codebooks.keys()):
+                layers_dict[f'features_rest_{sh_degree}'] = []
+                continue
+            features_rest = torch.tensor(np.stack([elements[f'f_rest_{sh_degree}_{ch}'] for ch in range(3)], axis=1), **kwargs)
+            layers_dict[f'features_rest_{sh_degree}'] = [self.load_baselayer_attr(f'features_rest_{sh_degree}', features_rest.reshape(-1), codebooks=codebooks)]
+        return layers_dict
