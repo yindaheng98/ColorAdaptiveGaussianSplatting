@@ -282,28 +282,44 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
 
     # ---------------- load base layer ----------------
 
-    def load_baselayer_codes(self, max_sh_degree: int, ply_path: str, device):
+    def load_baselayer_ply(self, max_sh_degree: int, ply_path: str, device):
         plydata = PlyData.read(ply_path)
-        n_leafs = np.load(os.path.splitext(ply_path)[0] + ".n_leaf.npz")
 
         layers_dict = {}
         elements = plydata['vertex']
         code_types = dict(dtype=torch.int64, device=device)
-        others = dict(codebook=None, cluster_centers=None, n_bit=None)
-        layers_dict["rotation_re"] = [Layer(codes=torch.tensor(elements["rot_re"].copy(), **code_types), n_leaf=n_leafs["rotation_re"].item(), **others)]
-        layers_dict["rotation_im"] = [Layer(codes=torch.tensor(elements["rot_im"].copy(), **code_types), n_leaf=n_leafs["rotation_im"].item(), **others)]
-        layers_dict["opacity"] = [Layer(codes=torch.tensor(elements["opacity"].copy(), **code_types), n_leaf=n_leafs["opacity"].item(), **others)]
-        layers_dict["scaling"] = [Layer(codes=torch.tensor(elements["scale"].copy(), **code_types), n_leaf=n_leafs["scaling"].item(), **others)]
-        layers_dict["features_dc"] = [Layer(codes=torch.tensor(elements["f_dc"].copy(), **code_types), n_leaf=n_leafs["features_dc"].item(), **others)]
+        others = dict(n_leaf=None, codebook=None, cluster_centers=None, n_bit=None)
+        layers_dict["rotation_re"] = [Layer(codes=torch.tensor(elements["rot_re"].copy(), **code_types), **others)]
+        layers_dict["rotation_im"] = [Layer(codes=torch.tensor(elements["rot_im"].copy(), **code_types), **others)]
+        layers_dict["opacity"] = [Layer(codes=torch.tensor(elements["opacity"].copy(), **code_types), **others)]
+        layers_dict["scaling"] = [Layer(codes=torch.tensor(elements["scale"].copy(), **code_types), **others)]
+        layers_dict["features_dc"] = [Layer(codes=torch.tensor(elements["f_dc"].copy(), **code_types), **others)]
         for sh_degree in range(max_sh_degree):
             if not set(f'f_rest_{sh_degree}_{ch}' for ch in range(3)).issubset(prop.name for prop in elements.properties):
                 layers_dict[f'features_rest_{sh_degree}'] = []
                 continue
             features_rest = torch.tensor(np.stack([elements[f'f_rest_{sh_degree}_{ch}'] for ch in range(3)], axis=1), **code_types).reshape(-1)
+            layers_dict[f'features_rest_{sh_degree}'] = [Layer(codes=features_rest, **others)]
+        return layers_dict
+
+    def load_baselayer_n_leafs(self, layers_dict: Dict[str, List[Layer]], max_sh_degree: int, ply_path: str, device):
+        n_leafs = np.load(os.path.splitext(ply_path)[0] + ".n_leaf.npz")
+
+        layers_dict["rotation_re"][0] = layers_dict["rotation_re"][0]._replace(n_leaf=n_leafs["rotation_re"].item())
+        layers_dict["rotation_im"][0] = layers_dict["rotation_im"][0]._replace(n_leaf=n_leafs["rotation_im"].item())
+        layers_dict["opacity"][0] = layers_dict["opacity"][0]._replace(n_leaf=n_leafs["opacity"].item())
+        layers_dict["scaling"][0] = layers_dict["scaling"][0]._replace(n_leaf=n_leafs["scaling"].item())
+        layers_dict["features_dc"][0] = layers_dict["features_dc"][0]._replace(n_leaf=n_leafs["features_dc"].item())
+        for sh_degree in range(max_sh_degree):
             if f'features_rest_{sh_degree}' not in n_leafs:
                 layers_dict[f'features_rest_{sh_degree}'] = []
                 continue
-            layers_dict[f'features_rest_{sh_degree}'] = [Layer(codes=features_rest, n_leaf=n_leafs[f'features_rest_{sh_degree}'].item(), **others)]
+            layers_dict[f'features_rest_{sh_degree}'][0] = layers_dict[f'features_rest_{sh_degree}'][0]._replace(n_leaf=n_leafs[f'features_rest_{sh_degree}'].item())
+        return layers_dict
+
+    def load_baselayer_codes(self, max_sh_degree: int, ply_path: str, device):
+        layers_dict = self.load_baselayer_ply(max_sh_degree, ply_path, device)
+        layers_dict = self.load_baselayer_n_leafs(layers_dict, max_sh_degree, ply_path, device)
         return layers_dict
 
     def load_baselayer_codebook(self, layers_dict: Dict[str, List[Layer]], max_sh_degree: int, ply_path: str, device):
