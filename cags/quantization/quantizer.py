@@ -60,6 +60,8 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         self.n_bits_proposal_features_rest = [((n_bits_proposal_features_rest[i] or n_bits_proposal) if len(n_bits_proposal_features_rest) > i else n_bits_proposal) for i in range(max_sh_degree)]
         self.n_bit_baselayer_features_rest = [((n_bit_baselayer_features_rest[i] or n_bit_baselayer) if len(n_bit_baselayer_features_rest) > i else n_bit_baselayer) for i in range(max_sh_degree)]
 
+        self._layers_dict = {}
+
     def encode_layers(self, values: torch.Tensor, ids: torch.Tensor, codebook: torch.Tensor, n_bit_baselayer: int, n_bits_proposal: int | List[int] | Callable[[int, torch.Tensor, torch.Tensor], List[int]]):
         # return encode_layers(values, ids, codebook, n_bit_baselayer, n_bits_proposal, visualize=values.shape[1] == 3)  # debug
         return encode_layers(values, ids, codebook, n_bit_baselayer, n_bits_proposal)
@@ -124,7 +126,7 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
     def layerize_scaling(self, model: GaussianModel, ids, codebook):
         return self.encode_layers(model._scaling.detach(), ids, codebook, self.n_bit_baselayer_scaling, self.n_bits_proposal_scaling)
 
-    def layerize(self, model: GaussianModel, ids_dict: Dict[str, torch.Tensor], codebook_dict: Dict[str, torch.Tensor]):
+    def layerize_unknown(self, model: GaussianModel, ids_dict: Dict[str, torch.Tensor], codebook_dict: Dict[str, torch.Tensor]):
         layers_dict: Dict[str, List[Layer]] = {}
 
         layers_dict["features_dc"] = self.layerize_features_dc(model, ids_dict["features_dc"].squeeze(1), codebook_dict["features_dc"])
@@ -136,6 +138,17 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
 
         layers_dict["opacity"] = self.layerize_opacity(model, ids_dict["opacity"], codebook_dict["opacity"])
         layers_dict["scaling"] = self.layerize_scaling(model, ids_dict["scaling"], codebook_dict["scaling"])
+        return layers_dict
+
+    def layerize_known(self, model: GaussianModel, ids_dict: Dict[str, torch.Tensor], layers_dict: Dict[str, torch.Tensor]):
+        raise NotImplementedError
+
+    def layerize(self, model: GaussianModel, ids_dict: Dict[str, torch.Tensor], codebook_dict: Dict[str, torch.Tensor], update_layers=False):
+        if self._layers_dict == {} or update_layers:
+            layers_dict = self.layerize_unknown(model, ids_dict, codebook_dict)
+            self._layers_dict = layers_dict
+        else:
+            layers_dict = self.layerize_known(model, ids_dict, self._layers_dict)
         return layers_dict
 
     def delayerize(self, max_sh_degree: int, layers_dict: Dict[str, List[Layer]]):
@@ -246,7 +259,7 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
 
     def save_quantized(self, model: GaussianModel, ply_path: str):
         ids_dict, codebook_dict = self.quantize(model, update_codebook=False)
-        layers_dict = self.layerize(model, ids_dict, codebook_dict)
+        layers_dict = self.layerize(model, ids_dict, codebook_dict, update_layers=False)
         self.save_baselayer(model, ply_path, layers_dict)
         self.save_enhencementlayers(ply_path, layers_dict)
         # ids_dict_orig = ids_dict
