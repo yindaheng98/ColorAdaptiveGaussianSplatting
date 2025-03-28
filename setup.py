@@ -12,7 +12,7 @@ package_dir = {
 
 setup(
     name='cags',
-    version='0.2',
+    version='0.3',
     author='yindaheng98',
     author_email='yindaheng98@gmail.com',
     url='https://github.com/yindaheng98/cags',

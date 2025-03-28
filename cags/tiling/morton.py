@@ -25,7 +25,7 @@ def morton(x: torch.Tensor, y: torch.Tensor, z: torch.Tensor):
 
 
 class MortonTiling(AbstractTiling):
-    def __init__(self, n_gaussians_pre_tile: int = 1024):
+    def __init__(self, n_gaussians_pre_tile: int = 8192):
         self.n_gaussians_pre_tile = n_gaussians_pre_tile
 
     def produce_tiling(self, model: GaussianModel) -> List[torch.Tensor]:

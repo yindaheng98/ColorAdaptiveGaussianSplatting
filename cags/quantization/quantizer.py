@@ -6,7 +6,7 @@ import torch
 from plyfile import PlyData, PlyElement
 from gaussian_splatting import GaussianModel
 from reduced_3dgs.quantization import ExcludeZeroSHQuantizer
-from scalablevq import encode_layers, extract_layers, Layer
+from scalablevq import encode_layers, encode_known_layers, extract_layers, Layer
 
 from .abc import InterfaceScalableQuantizer
 
@@ -19,11 +19,21 @@ def expand_base_layer(layer: Layer, zero_mask: torch.Tensor):
     return layer._replace(codes=codes, codebook=codebook, cluster_centers=cluster_centers)
 
 
-def shrink_base_layer(layer: Layer):
+def shrink_base_layer_codes(layer: Layer):
     zero_mask = layer.codes == 0
     codes = layer.codes[~zero_mask] - (1 << layer.n_bit)
+    return codes, zero_mask
+
+
+def shrink_base_layer_codebook(layer: Layer):
     codebook = layer.codebook[1:, ...]
     cluster_centers = layer.cluster_centers[1:, ...]
+    return codebook, cluster_centers
+
+
+def shrink_base_layer(layer: Layer):
+    codes, zero_mask = shrink_base_layer_codes(layer)
+    codebook, cluster_centers = shrink_base_layer_codebook(layer)
     return layer._replace(codes=codes, codebook=codebook, cluster_centers=cluster_centers), zero_mask
 
 
@@ -68,6 +78,9 @@ class ScalableQuantizer(InterfaceScalableQuantizer, ExcludeZeroSHQuantizer):
         # return encode_layers(values, ids, codebook, n_bit_baselayer, n_bits_proposal, visualize=values.shape[1] == 3)  # debug
         return encode_layers(values, ids, codebook, n_bit_baselayer, n_bits_proposal)
 
+    def encode_known_layers(self, ids: torch.Tensor, codebook: torch.Tensor, layers: List[Layer]):
+        return encode_known_layers(ids, codebook, layers)
+
     def extract_layers(self, layers: List[Layer]):
         return extract_layers(layers)
 
@@ -79,6 +92,17 @@ class ScalableQuantizer(InterfaceScalableQuantizer, ExcludeZeroSHQuantizer):
         # assert (nonzero_codebook[nonzero_ids] == codebook[ids][~zeros_mask]).all() # debug
         # layers = encode_layers(nonzero_values, nonzero_ids, nonzero_codebook, n_bit_baselayer, n_bits_proposal, visualize=values.shape[1] == 3)  # debug
         layers = encode_layers(nonzero_values, nonzero_ids, nonzero_codebook, n_bit_baselayer, n_bits_proposal)
+        return [expand_base_layer(layers[0], zeros_mask)] + layers[1:]
+
+    def encode_known_layers_exclude_zero(self, ids: torch.Tensor, codebook: torch.Tensor, layers: List[Layer]):
+        zeros_mask = ids == 0
+        if zeros_mask.all():
+            return []
+        shrink_codebook, shrink_cluster_centers = shrink_base_layer_codebook(layers[0])
+        layers = [layers[0]._replace(codebook=shrink_codebook, cluster_centers=shrink_cluster_centers, codes=None)] + [layer._replace(codes=None) for layer in layers[1:]]
+        nonzero_ids = ids[~zeros_mask] - 1
+        nonzero_codebook = codebook[1:, ...]
+        layers = encode_known_layers(nonzero_ids, nonzero_codebook, layers)
         return [expand_base_layer(layers[0], zeros_mask)] + layers[1:]
 
     def extract_layers_exclude_zero(self, layers: List[Layer]):
@@ -104,6 +128,13 @@ class ScalableQuantizer(InterfaceScalableQuantizer, ExcludeZeroSHQuantizer):
         features_rest = features_rest_flatten[:, sh_idx_start:sh_idx_end]
         ids_reshaped = ids.reshape(ids.shape[0] * 3)
         layers = self.encode_layers_exclude_zero(features_rest, ids_reshaped, codebook, self.n_bit_baselayer_features_rest[sh_degree], self.n_bits_proposal_features_rest[sh_degree])
+        return layers
+
+    def layerize_features_rest_known(self, ids, codebook, layers):
+        if codebook.shape[0] <= 1:  # all zero from ExcludeZeroQuantizer.generate_codebook
+            return []
+        ids_reshaped = ids.reshape(ids.shape[0] * 3)
+        layers = self.encode_known_layers_exclude_zero(ids_reshaped, codebook, layers)
         return layers
 
     def delayerize_features_rest(self, sh_degree: int, layers: List[Layer], reference_ids: torch.Tensor, reference_codebook: torch.Tensor):
@@ -142,15 +173,22 @@ class ScalableQuantizer(InterfaceScalableQuantizer, ExcludeZeroSHQuantizer):
         layers_dict["scaling"] = self.layerize_scaling(model, ids_dict["scaling"], codebook_dict["scaling"])
         return layers_dict
 
-    def layerize_known(self, model: GaussianModel, ids_dict: Dict[str, torch.Tensor], layers_dict: Dict[str, torch.Tensor]):
-        raise NotImplementedError
+    def layerize_known(self, max_sh_degree, ids_dict: Dict[str, torch.Tensor], codebook_dict: Dict[str, torch.Tensor], layers_dict: Dict[str, torch.Tensor]):
+        layers_dict["features_dc"] = self.encode_known_layers(ids_dict["features_dc"].squeeze(1), codebook_dict["features_dc"], layers_dict["features_dc"])
+        for sh_degree in range(max_sh_degree):
+            layers_dict[f'features_rest_{sh_degree}'] = self.layerize_features_rest_known(ids_dict[f'features_rest_{sh_degree}'], codebook_dict[f'features_rest_{sh_degree}'], layers_dict[f'features_rest_{sh_degree}'])
+        layers_dict["rotation_re"] = self.encode_known_layers(ids_dict["rotation_re"], codebook_dict["rotation_re"], layers_dict["rotation_re"])
+        layers_dict["rotation_im"] = self.encode_known_layers(ids_dict["rotation_im"], codebook_dict["rotation_im"], layers_dict["rotation_im"])
+        layers_dict["opacity"] = self.encode_known_layers(ids_dict["opacity"], codebook_dict["opacity"], layers_dict["opacity"])
+        layers_dict["scaling"] = self.encode_known_layers(ids_dict["scaling"], codebook_dict["scaling"], layers_dict["scaling"])
+        return layers_dict
 
     def layerize(self, model: GaussianModel, ids_dict: Dict[str, torch.Tensor], codebook_dict: Dict[str, torch.Tensor], update_layers=False):
         if self._layers_dict == {} or update_layers:
             layers_dict = self.layerize_unknown(model, ids_dict, codebook_dict)
             self._layers_dict = layers_dict
         else:
-            layers_dict = self.layerize_known(model, ids_dict, self._layers_dict)
+            layers_dict = self.layerize_known(model.max_sh_degree, ids_dict, codebook_dict, {k: v for k, v in self._layers_dict.items()})
         return layers_dict
 
     def delayerize(self, max_sh_degree: int, layers_dict: Dict[str, List[Layer]]):

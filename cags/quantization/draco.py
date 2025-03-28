@@ -36,7 +36,7 @@ class DracoCompressedScalableQuantizer(ScalableQuantizer):
             ('scale', self.force_code_dtype or f"u{math.ceil(layers_dict['scaling'][0].n_bit / 8)}"),
             ('f_dc', self.force_code_dtype or f"u{math.ceil(layers_dict['features_dc'][0].n_bit / 8)}"),
         ]
-        force_n_bit_features_rest = 0
+        force_n_bit_features_rest = 1
         for sh_degree in range(max_sh_degree):
             if len(layers_dict[f"features_rest_{sh_degree}"]) <= 0:
                 continue
