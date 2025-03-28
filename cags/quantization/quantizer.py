@@ -351,20 +351,6 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
 
     # ---------------- load enhencement layer ----------------
 
-    def load_enhencementlayer_codes(self, ply_path: str, layers_dict: Dict[str, List[Layer]], device):
-        for key in layers_dict.keys():
-            if len(layers_dict[key]) <= 0:
-                continue
-            i = 1
-            while os.path.exists(os.path.splitext(ply_path)[0] + f".layer.{key}.{i}.codes.npz"):
-                layer = np.load(os.path.splitext(ply_path)[0] + f".layer.{key}.{i}.codes.npz")
-                layers_dict[key][i] = layers_dict[key][i]._replace(
-                    codes=torch.tensor(layer["codes"], device=device),
-                    n_leaf=layer["n_leaf"].item(),
-                )
-                i += 1
-        return layers_dict
-
     def load_enhencementlayer_codebooks(self, ply_path: str, layers_dict: Dict[str, List[Layer]], device):
         for key in layers_dict.keys():
             if len(layers_dict[key]) <= 0:
@@ -379,6 +365,20 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
                     codes=None,
                     n_leaf=None,
                 ))
+                i += 1
+        return layers_dict
+
+    def load_enhencementlayer_codes(self, ply_path: str, layers_dict: Dict[str, List[Layer]], device):
+        for key in layers_dict.keys():
+            if len(layers_dict[key]) <= 0:
+                continue
+            i = 1
+            while os.path.exists(os.path.splitext(ply_path)[0] + f".layer.{key}.{i}.codes.npz"):
+                layer = np.load(os.path.splitext(ply_path)[0] + f".layer.{key}.{i}.codes.npz")
+                layers_dict[key][i] = layers_dict[key][i]._replace(
+                    codes=torch.tensor(layer["codes"], device=device),
+                    n_leaf=layer["n_leaf"].item(),
+                )
                 i += 1
         return layers_dict
 
