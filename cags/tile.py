@@ -32,7 +32,7 @@ def tile(source, destination, iteration, sh_degree, device, tiling, draco, **kwa
         os.makedirs(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), exist_ok=True)
         quantizer.save_quantized_tiles(gaussians, output)
     else:
-        gaussians = quantizer.save_quantized_tiles(gaussians, output)
+        gaussians = quantizer.load_quantized_tiles(gaussians, output)
         output = os.path.join(destination, "point_cloud", "iteration_" + str(iteration), "point_cloud.ply")
         gaussians.save_ply(output)
 
