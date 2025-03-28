@@ -96,6 +96,24 @@
             ]
         },
         {
+            "name": "stitch",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "cags.tile",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "-s",
+                "output/truck-reduced",
+                "-d",
+                "output/truck-scalable-tiles",
+                "-i",
+                "30000",
+                "--draco",
+                "--stitching",
+            ]
+        },
+        {
             "name": "compare ply",
             "type": "debugpy",
             "request": "launch",

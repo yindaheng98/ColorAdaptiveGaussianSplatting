@@ -1,6 +1,8 @@
+import copy
 import glob
 import os
 from typing import Dict, List, NamedTuple, Tuple
+import torch
 import tqdm
 from gaussian_splatting.gaussian_model import GaussianModel
 from cags.quantization import InterfaceScalableQuantizer
@@ -11,6 +13,7 @@ from scalablevq import Layer
 class Tile(NamedTuple):
     layers_dict: Dict[str, List[Layer]]
     gaussians: GaussianModel
+    xyz: torch.Tensor = None
 
 
 class TillingScalableQuantizer:
@@ -30,7 +33,11 @@ class TillingScalableQuantizer:
         return layers_dict, tiles
 
     def dequantize_stitching(self, model: GaussianModel, tiles: List[Tile]) -> GaussianModel:
-        raise NotImplementedError
+        for i in range(len(tiles)):
+            ids_dict, codebook_dict = self.quantizer.delayerize(model.max_sh_degree, tiles[i].layers_dict)
+            tile = self.quantizer.dequantize(tiles[i].gaussians, ids_dict, codebook_dict, xyz=tiles[i].xyz, replace=True)
+            tiles[i] = tiles[i]._replace(gaussians=tile)
+        return self.tiling.stitching([tile.gaussians for tile in tiles])
 
     def save_quantized_tiles(self, model: GaussianModel, ply_path: str):
         layers_dict, tiles = self.quantize_tiling(model)
@@ -54,6 +61,6 @@ class TillingScalableQuantizer:
             layers_dict = {k: [layer for layer in layers] for k, layers in layers_dict.items()}
             layers_dict = self.quantizer.load_enhencementlayers_codes(tile_path, layers_dict, model._xyz.device)
             layers_dict, xyz = self.quantizer.load_baselayer_codes(model.max_sh_degree, tile_path, layers_dict, model._xyz.device)
-            tiles.append(Tile(layers_dict=layers_dict, gaussians=None))
+            tiles.append(Tile(layers_dict=layers_dict, gaussians=copy.deepcopy(model), xyz=xyz))
             i += 1
         return self.dequantize_stitching(model, tiles)
