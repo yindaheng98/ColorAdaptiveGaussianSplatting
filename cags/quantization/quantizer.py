@@ -124,7 +124,7 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
     def layerize_scaling(self, model: GaussianModel, ids, codebook):
         return self.encode_layers(model._scaling.detach(), ids, codebook, self.n_bit_baselayer_scaling, self.n_bits_proposal_scaling)
 
-    def layerize(self, model: GaussianModel, codebook_dict: Dict[str, torch.Tensor], ids_dict: Dict[str, torch.Tensor]):
+    def layerize(self, model: GaussianModel, ids_dict: Dict[str, torch.Tensor], codebook_dict: Dict[str, torch.Tensor]):
         layers_dict: Dict[str, List[Layer]] = {}
 
         layers_dict["features_dc"] = self.layerize_features_dc(model, ids_dict["features_dc"].squeeze(1), codebook_dict["features_dc"])
@@ -246,7 +246,7 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
 
     def save_quantized(self, model: GaussianModel, ply_path: str):
         ids_dict, codebook_dict = self.quantize(model, update_codebook=False)
-        layers_dict = self.layerize(model, codebook_dict, ids_dict)
+        layers_dict = self.layerize(model, ids_dict, codebook_dict)
         self.save_baselayer(model, ply_path, layers_dict)
         self.save_enhencementlayers(ply_path, layers_dict)
         # ids_dict_orig = ids_dict
