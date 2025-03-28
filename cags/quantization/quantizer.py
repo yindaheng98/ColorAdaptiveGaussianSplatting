@@ -282,32 +282,55 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
 
     # ---------------- load base layer ----------------
 
-    def load_baselayer_attr(self, key, codes, codebooks, device):
-        return Layer(
-            codes=codes,
-            codebook=torch.tensor(codebooks[f"{key}_codebook"], device=device),
-            cluster_centers=torch.tensor(codebooks[f"{key}_cluster_centers"], device=device),
-            n_bit=codebooks[f"{key}_n_bits"].item(),
-            n_leaf=codebooks[f"{key}_n_leafs"].item(),
-        )
-
-    def load_baselayer(self, max_sh_degree: int, ply_path: str, device):
+    def load_baselayer_codes(self, max_sh_degree: int, ply_path: str, device):
         plydata = PlyData.read(ply_path)
-        codebooks = np.load(os.path.splitext(ply_path)[0] + ".codebook.npz")
+        n_leafs = np.load(os.path.splitext(ply_path)[0] + ".n_leaf.npz")
 
         layers_dict = {}
         elements = plydata['vertex']
-        layers_dict["rotation_re"] = [self.load_baselayer_attr("rotation_re", torch.tensor(elements["rot_re"].copy(), dtype=torch.int64, device=device), codebooks=codebooks, device=device)]
-        layers_dict["rotation_im"] = [self.load_baselayer_attr("rotation_im", torch.tensor(elements["rot_im"].copy(), dtype=torch.int64, device=device), codebooks=codebooks, device=device)]
-        layers_dict["opacity"] = [self.load_baselayer_attr("opacity", torch.tensor(elements["opacity"].copy(), dtype=torch.int64, device=device), codebooks=codebooks, device=device)]
-        layers_dict["scaling"] = [self.load_baselayer_attr("scaling", torch.tensor(elements["scale"].copy(), dtype=torch.int64, device=device), codebooks=codebooks, device=device)]
-        layers_dict["features_dc"] = [self.load_baselayer_attr("features_dc", torch.tensor(elements["f_dc"].copy(), dtype=torch.int64, device=device), codebooks=codebooks, device=device)]
+        code_types = dict(dtype=torch.int64, device=device)
+        others = dict(codebook=None, cluster_centers=None, n_bit=None)
+        layers_dict["rotation_re"] = [Layer(codes=torch.tensor(elements["rot_re"].copy(), **code_types), n_leaf=n_leafs["rotation_re"].item(), **others)]
+        layers_dict["rotation_im"] = [Layer(codes=torch.tensor(elements["rot_im"].copy(), **code_types), n_leaf=n_leafs["rotation_im"].item(), **others)]
+        layers_dict["opacity"] = [Layer(codes=torch.tensor(elements["opacity"].copy(), **code_types), n_leaf=n_leafs["opacity"].item(), **others)]
+        layers_dict["scaling"] = [Layer(codes=torch.tensor(elements["scale"].copy(), **code_types), n_leaf=n_leafs["scaling"].item(), **others)]
+        layers_dict["features_dc"] = [Layer(codes=torch.tensor(elements["f_dc"].copy(), **code_types), n_leaf=n_leafs["features_dc"].item(), **others)]
         for sh_degree in range(max_sh_degree):
             if not set(f'f_rest_{sh_degree}_{ch}' for ch in range(3)).issubset(prop.name for prop in elements.properties):
                 layers_dict[f'features_rest_{sh_degree}'] = []
                 continue
-            features_rest = torch.tensor(np.stack([elements[f'f_rest_{sh_degree}_{ch}'] for ch in range(3)], axis=1), dtype=torch.int64, device=device)
-            layers_dict[f'features_rest_{sh_degree}'] = [self.load_baselayer_attr(f'features_rest_{sh_degree}', features_rest.reshape(-1), codebooks=codebooks, device=device)]
+            features_rest = torch.tensor(np.stack([elements[f'f_rest_{sh_degree}_{ch}'] for ch in range(3)], axis=1), **code_types).reshape(-1)
+            if f'features_rest_{sh_degree}' not in n_leafs:
+                layers_dict[f'features_rest_{sh_degree}'] = []
+                continue
+            layers_dict[f'features_rest_{sh_degree}'] = [Layer(codes=features_rest, n_leaf=n_leafs[f'features_rest_{sh_degree}'].item(), **others)]
+        return layers_dict
+
+    def load_baselayer_codebook(self, layers_dict: Dict[str, List[Layer]], max_sh_degree: int, ply_path: str, device):
+        codebooks = np.load(os.path.splitext(ply_path)[0] + ".codebook.npz")
+
+        def load_baselayer_attr_codebook(key):
+            layers_dict[key][0] = layers_dict[key][0]._replace(
+                codebook=torch.tensor(codebooks[f"{key}_codebook"], device=device),
+                cluster_centers=torch.tensor(codebooks[f"{key}_cluster_centers"], device=device),
+                n_bit=codebooks[f"{key}_n_bits"].item(),
+            )
+
+        load_baselayer_attr_codebook("rotation_re")
+        load_baselayer_attr_codebook("rotation_im")
+        load_baselayer_attr_codebook("opacity")
+        load_baselayer_attr_codebook("scaling")
+        load_baselayer_attr_codebook("features_dc")
+        for sh_degree in range(max_sh_degree):
+            if not set((f'features_rest_{sh_degree}_{item}' for item in ['codebook', 'cluster_centers', 'n_bits'])).issubset(set(codebooks.keys())):
+                layers_dict[f'features_rest_{sh_degree}'] = []
+                continue
+            load_baselayer_attr_codebook(f'features_rest_{sh_degree}')
+        return layers_dict
+
+    def load_baselayer(self, max_sh_degree: int, ply_path: str, device):
+        layers_dict = self.load_baselayer_codes(max_sh_degree, ply_path, device)
+        layers_dict = self.load_baselayer_codebook(layers_dict, max_sh_degree, ply_path, device)
         return layers_dict
 
     # ---------------- load enhencement layer ----------------
