@@ -80,12 +80,13 @@ class DracoCompressedScalableQuantizer(ScalableQuantizer):
         elements = np.rec.fromarrays([data.squeeze(-1) for data in data_full], dtype=dtype_full)
         el = PlyElement.describe(elements, 'vertex')
 
-        PlyData([el]).write(ply_path)
+        src_path = os.path.splitext(ply_path)[0] + ".drcsource.ply"
+        PlyData([el]).write(src_path)
 
         drc_path = os.path.splitext(ply_path)[0] + ".drc"
         subprocess.check_call([
             self.draco_encoder_executable,
-            "-i", ply_path, "-o", drc_path, "-cl", str(0),
+            "-i", src_path, "-o", drc_path, "-cl", str(0),
             "-qp", str(self.draco_qp),
             "-qscale", str(self.draco_q['scaling']),
             "-qrotation", str(self.draco_q['rotation']),
