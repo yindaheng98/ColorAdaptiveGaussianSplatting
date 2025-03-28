@@ -94,11 +94,16 @@ class DracoCompressedScalableQuantizer(ScalableQuantizer):
             "-qfeaturerest", str(self.draco_q['features_rest']),
         ])
 
-    def load_baselayer_codes(self, max_sh_degree: int, ply_path: str, device):
+    def load_baselayer_codes(self, layers_dict: Dict[str, List[Layer]], max_sh_degree: int, ply_path: str, device):
         drc_path = os.path.splitext(ply_path)[0] + ".drc"
         extract_path = os.path.splitext(ply_path)[0] + ".drcdecode.ply"
         subprocess.check_call([
             self.draco_decoder_executable,
             "-i", drc_path, "-o", extract_path,
         ])
-        return super().load_baselayer_codes(max_sh_degree, extract_path, device)
+        true_max_sh_degree = 0
+        for sh_degree in range(max_sh_degree):
+            if len(layers_dict[f"features_rest_{sh_degree}"]) <= 0:
+                break
+            true_max_sh_degree += 1
+        return super().load_baselayer_codes(layers_dict, true_max_sh_degree, extract_path, device)
