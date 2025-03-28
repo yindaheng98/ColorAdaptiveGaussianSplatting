@@ -358,13 +358,10 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
             i = 1
             while os.path.exists(os.path.splitext(ply_path)[0] + f".layer.{key}.{i}.codes.npz"):
                 layer = np.load(os.path.splitext(ply_path)[0] + f".layer.{key}.{i}.codes.npz")
-                layers_dict[key].append(Layer(
+                layers_dict[key][i] = layers_dict[key][i]._replace(
                     codes=torch.tensor(layer["codes"], device=device),
                     n_leaf=layer["n_leaf"].item(),
-                    codebook=None,
-                    cluster_centers=None,
-                    n_bit=None,
-                ))
+                )
                 i += 1
         return layers_dict
 
@@ -374,20 +371,20 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
                 continue
             i = 1
             while os.path.exists(os.path.splitext(ply_path)[0] + f".layer.{key}.{i}.codebook.npz"):
-                if len(layers_dict[key]) < i + 1:
-                    break
                 layer = np.load(os.path.splitext(ply_path)[0] + f".layer.{key}.{i}.codebook.npz")
-                layers_dict[key][i] = layers_dict[key][i]._replace(
+                layers_dict[key].append(Layer(
                     codebook=torch.tensor(layer["codebook"], device=device),
                     cluster_centers=torch.tensor(layer["cluster_centers"], device=device),
                     n_bit=layer["n_bit"].item(),
-                )
+                    codes=None,
+                    n_leaf=None,
+                ))
                 i += 1
         return layers_dict
 
     def load_enhencementlayers(self, ply_path: str, layers_dict: Dict[str, List[Layer]], device):
-        layers_dict = self.load_enhencementlayer_codes(ply_path, layers_dict, device)
         layers_dict = self.load_enhencementlayer_codebooks(ply_path, layers_dict, device)
+        layers_dict = self.load_enhencementlayer_codes(ply_path, layers_dict, device)
         return layers_dict
 
     # ---------------- load all quantized data ----------------
