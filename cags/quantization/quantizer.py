@@ -314,7 +314,7 @@ class ScalableQuantizer(InterfaceScalableQuantizer, ExcludeZeroSHQuantizer):
             load_baselayer_attr_codebook(f'features_rest_{sh_degree}')
         return layers_dict
 
-    def load_baselayer_codes(self, layers_dict: Dict[str, List[Layer]], max_sh_degree: int, ply_path: str, device):
+    def load_baselayer_codes(self, max_sh_degree: int, ply_path: str, layers_dict: Dict[str, List[Layer]], device):
         plydata = PlyData.read(ply_path)
 
         elements = plydata['vertex']
