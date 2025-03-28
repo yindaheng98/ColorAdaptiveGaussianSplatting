@@ -85,14 +85,14 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         codebook = torch.cat([torch.zeros((1, *nonzero_codebook.shape[1:]), dtype=nonzero_codebook.dtype, device=nonzero_codebook.device), nonzero_codebook])
         return ids, codebook
 
-    def cluster2layers_features_dc(self, model: GaussianModel, ids, codebook):
+    def layerize_features_dc(self, model: GaussianModel, ids, codebook):
         return self.encode_layers(model._features_dc.detach().squeeze(1), ids, codebook, self.n_bit_baselayer_features_dc, self.n_bits_proposal_features_dc)
 
-    def layers2cluster_features_dc(self, layers: List[Layer]):
+    def delayerize_features_dc(self, layers: List[Layer]):
         ids, codebook = self.extract_layers(layers)
         return ids.unsqueeze(1), codebook
 
-    def cluster2layers_features_rest(self, model: GaussianModel, sh_degree, ids, codebook):
+    def layerize_features_rest(self, model: GaussianModel, sh_degree, ids, codebook):
         if codebook.shape[0] <= 1:  # all zero from ExcludeZeroQuantizer.generate_codebook
             return []
         sh_idx_start, sh_idx_end = (sh_degree + 1) ** 2 - 1, (sh_degree + 2) ** 2 - 1
@@ -102,7 +102,7 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         layers = self.encode_layers_exclude_zero(features_rest, ids_reshaped, codebook, self.n_bit_baselayer_features_rest[sh_degree], self.n_bits_proposal_features_rest[sh_degree])
         return layers
 
-    def layers2cluster_features_rest(self, sh_degree: int, layers: List[Layer], reference_ids: torch.Tensor, reference_codebook: torch.Tensor):
+    def delayerize_features_rest(self, sh_degree: int, layers: List[Layer], reference_ids: torch.Tensor, reference_codebook: torch.Tensor):
         if len(layers) <= 0:  # all zero from ExcludeZeroQuantizer.generate_codebook
             sh_idx_start, sh_idx_end = (sh_degree + 1) ** 2 - 1, (sh_degree + 2) ** 2 - 1
             ids = torch.zeros((reference_ids.shape[0], 3), dtype=reference_ids.dtype, device=reference_ids.device)
@@ -112,38 +112,38 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         ids = ids_reshaped.reshape(reference_ids.shape[0], 3)
         return ids, codebook
 
-    def cluster2layers_rotation_re(self, model: GaussianModel, ids, codebook):
+    def layerize_rotation_re(self, model: GaussianModel, ids, codebook):
         return self.encode_layers(model.get_rotation.detach()[:, 0:1], ids, codebook, self.n_bit_baselayer_rotation_re, self.n_bits_proposal_rotation_re)
 
-    def cluster2layers_rotation_im(self, model: GaussianModel, ids, codebook):
+    def layerize_rotation_im(self, model: GaussianModel, ids, codebook):
         return self.encode_layers(model.get_rotation.detach()[:, 1:], ids, codebook, self.n_bit_baselayer_rotation_im, self.n_bits_proposal_rotation_im)
 
-    def cluster2layers_opacity(self, model: GaussianModel, ids, codebook):
+    def layerize_opacity(self, model: GaussianModel, ids, codebook):
         return self.encode_layers(model._opacity.detach(), ids, codebook, self.n_bit_baselayer_opacity, self.n_bits_proposal_opacity)
 
-    def cluster2layers_scaling(self, model: GaussianModel, ids, codebook):
+    def layerize_scaling(self, model: GaussianModel, ids, codebook):
         return self.encode_layers(model._scaling.detach(), ids, codebook, self.n_bit_baselayer_scaling, self.n_bits_proposal_scaling)
 
-    def cluster2layers(self, model: GaussianModel, codebook_dict: Dict[str, torch.Tensor], ids_dict: Dict[str, torch.Tensor]):
+    def layerize(self, model: GaussianModel, codebook_dict: Dict[str, torch.Tensor], ids_dict: Dict[str, torch.Tensor]):
         layers_dict: Dict[str, List[Layer]] = {}
 
-        layers_dict["features_dc"] = self.cluster2layers_features_dc(model, ids_dict["features_dc"].squeeze(1), codebook_dict["features_dc"])
+        layers_dict["features_dc"] = self.layerize_features_dc(model, ids_dict["features_dc"].squeeze(1), codebook_dict["features_dc"])
         for sh_degree in range(model.max_sh_degree):
-            layers_dict[f'features_rest_{sh_degree}'] = self.cluster2layers_features_rest(model, sh_degree, ids_dict[f'features_rest_{sh_degree}'], codebook_dict[f'features_rest_{sh_degree}'])
+            layers_dict[f'features_rest_{sh_degree}'] = self.layerize_features_rest(model, sh_degree, ids_dict[f'features_rest_{sh_degree}'], codebook_dict[f'features_rest_{sh_degree}'])
 
-        layers_dict["rotation_re"] = self.cluster2layers_rotation_re(model, ids_dict["rotation_re"], codebook_dict["rotation_re"])
-        layers_dict["rotation_im"] = self.cluster2layers_rotation_im(model, ids_dict["rotation_im"], codebook_dict["rotation_im"])
+        layers_dict["rotation_re"] = self.layerize_rotation_re(model, ids_dict["rotation_re"], codebook_dict["rotation_re"])
+        layers_dict["rotation_im"] = self.layerize_rotation_im(model, ids_dict["rotation_im"], codebook_dict["rotation_im"])
 
-        layers_dict["opacity"] = self.cluster2layers_opacity(model, ids_dict["opacity"], codebook_dict["opacity"])
-        layers_dict["scaling"] = self.cluster2layers_scaling(model, ids_dict["scaling"], codebook_dict["scaling"])
+        layers_dict["opacity"] = self.layerize_opacity(model, ids_dict["opacity"], codebook_dict["opacity"])
+        layers_dict["scaling"] = self.layerize_scaling(model, ids_dict["scaling"], codebook_dict["scaling"])
         return layers_dict
 
-    def layers2cluster(self, max_sh_degree: int, layers_dict: Dict[str, List[Layer]]):
+    def delayerize(self, max_sh_degree: int, layers_dict: Dict[str, List[Layer]]):
         ids_dict: Dict[str, torch.Tensor] = {}
         codebook_dict: Dict[str, torch.Tensor] = {}
-        ids_dict["features_dc"], codebook_dict["features_dc"] = self.layers2cluster_features_dc(layers_dict["features_dc"])
+        ids_dict["features_dc"], codebook_dict["features_dc"] = self.delayerize_features_dc(layers_dict["features_dc"])
         for sh_degree in range(max_sh_degree):
-            ids_dict[f'features_rest_{sh_degree}'], codebook_dict[f'features_rest_{sh_degree}'] = self.layers2cluster_features_rest(
+            ids_dict[f'features_rest_{sh_degree}'], codebook_dict[f'features_rest_{sh_degree}'] = self.delayerize_features_rest(
                 sh_degree, layers_dict[f'features_rest_{sh_degree}'], ids_dict["features_dc"], codebook_dict["features_dc"]
             )
 
@@ -152,7 +152,7 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
 
         ids_dict["opacity"], codebook_dict["opacity"] = self.extract_layers(layers_dict["opacity"])
         ids_dict["scaling"], codebook_dict["scaling"] = self.extract_layers(layers_dict["scaling"])
-        return codebook_dict, ids_dict
+        return ids_dict, codebook_dict
 
     # ---------------- save base layer ----------------
 
@@ -246,11 +246,11 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
 
     def save_quantized(self, model: GaussianModel, ply_path: str):
         ids_dict, codebook_dict = self.quantize(model, update_codebook=False)
-        layers_dict = self.cluster2layers(model, codebook_dict, ids_dict)
+        layers_dict = self.layerize(model, codebook_dict, ids_dict)
         self.save_baselayer(model, ply_path, layers_dict)
         self.save_enhencementlayers(ply_path, layers_dict)
         # ids_dict_orig = ids_dict
-        # codebook_dict, ids_dict = self.layers2cluster(model, layers_dict)
+        # codebook_dict, ids_dict = self.delayerize(model, layers_dict)
         # for key in layers_dict.keys():
         #     if len(layers_dict[key]) <= 0:
         #         continue
@@ -347,5 +347,5 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         device = model._xyz.device
         layers_dict = self.load_baselayer(model.max_sh_degree, ply_path, device)
         layers_dict = self.load_enhencementlayers(ply_path, layers_dict, device)
-        codebook_dict, ids_dict = self.layers2cluster(model.max_sh_degree, layers_dict)
+        ids_dict, codebook_dict = self.delayerize(model.max_sh_degree, layers_dict)
         return self.dequantize(model, ids_dict, codebook_dict)
