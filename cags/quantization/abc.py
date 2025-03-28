@@ -77,16 +77,16 @@ class InterfaceScalableQuantizer(AbstractQuantizer):
     # ---------------- load enhencement layer ----------------
 
     @abc.abstractmethod
-    def load_enhencementlayer_codebooks(self, ply_path: str, layers_dict: Dict[str, List[Layer]], device) -> Dict[str, List[Layer]]:
+    def load_enhencementlayers_codebook(self, ply_path: str, layers_dict: Dict[str, List[Layer]], device) -> Dict[str, List[Layer]]:
         pass
 
     @abc.abstractmethod
-    def load_enhencementlayer_codes(self, ply_path: str, layers_dict: Dict[str, List[Layer]], device) -> Dict[str, List[Layer]]:
+    def load_enhencementlayers_codes(self, ply_path: str, layers_dict: Dict[str, List[Layer]], device) -> Dict[str, List[Layer]]:
         pass
 
     def load_enhencementlayers(self, ply_path: str, layers_dict: Dict[str, List[Layer]], device):
-        layers_dict = self.load_enhencementlayer_codebooks(ply_path, layers_dict, device)
-        layers_dict = self.load_enhencementlayer_codes(ply_path, layers_dict, device)
+        layers_dict = self.load_enhencementlayers_codebook(ply_path, layers_dict, device)
+        layers_dict = self.load_enhencementlayers_codes(ply_path, layers_dict, device)
         return layers_dict
 
     # ---------------- load all quantized data ----------------

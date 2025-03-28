@@ -334,7 +334,7 @@ class ScalableQuantizer(InterfaceScalableQuantizer, ExcludeZeroSHQuantizer):
 
     # ---------------- load enhencement layer ----------------
 
-    def load_enhencementlayer_codebooks(self, ply_path: str, layers_dict: Dict[str, List[Layer]], device):
+    def load_enhencementlayers_codebook(self, ply_path: str, layers_dict: Dict[str, List[Layer]], device):
         for key in layers_dict.keys():
             if len(layers_dict[key]) <= 0:
                 continue
@@ -351,7 +351,7 @@ class ScalableQuantizer(InterfaceScalableQuantizer, ExcludeZeroSHQuantizer):
                 i += 1
         return layers_dict
 
-    def load_enhencementlayer_codes(self, ply_path: str, layers_dict: Dict[str, List[Layer]], device):
+    def load_enhencementlayers_codes(self, ply_path: str, layers_dict: Dict[str, List[Layer]], device):
         for key in layers_dict.keys():
             if len(layers_dict[key]) <= 0:
                 continue
