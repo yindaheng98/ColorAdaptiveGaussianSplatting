@@ -25,17 +25,6 @@ def shrink_base_layer(layer: Layer):
     return layer._replace(codes=codes, codebook=codebook, cluster_centers=cluster_centers), zero_mask
 
 
-def load_layer(path: str, device: torch.device):
-    layer = np.load(path)
-    return Layer(
-        codes=torch.tensor(layer["codes"], device=device),
-        codebook=torch.tensor(layer["codebook"], device=device),
-        cluster_centers=torch.tensor(layer["cluster_centers"], device=device),
-        n_bit=layer["n_bit"].item(),
-        n_leaf=layer["n_leaf"].item(),
-    )
-
-
 class ScalableQuantizer(ExcludeZeroSHQuantizer):
     def __init__(
         self,
