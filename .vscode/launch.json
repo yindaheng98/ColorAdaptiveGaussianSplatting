@@ -77,7 +77,7 @@
                 "-s",
                 "output/truck-reduced",
                 "-d",
-                "output/truck-scalable",
+                "output/truck-scalable-tiles",
                 "-i",
                 "30000",
                 "--draco",
