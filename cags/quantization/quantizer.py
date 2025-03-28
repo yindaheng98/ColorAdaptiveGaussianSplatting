@@ -8,6 +8,8 @@ from gaussian_splatting import GaussianModel
 from reduced_3dgs.quantization import ExcludeZeroSHQuantizer
 from scalablevq import encode_layers, extract_layers, Layer
 
+from .abc import InterfaceScalableQuantizer
+
 
 def expand_base_layer(layer: Layer, zero_mask: torch.Tensor):
     codes = torch.zeros(zero_mask.shape[0], dtype=layer.codes.dtype, device=layer.codes.device)
@@ -25,7 +27,7 @@ def shrink_base_layer(layer: Layer):
     return layer._replace(codes=codes, codebook=codebook, cluster_centers=cluster_centers), zero_mask
 
 
-class ScalableQuantizer(ExcludeZeroSHQuantizer):
+class ScalableQuantizer(ExcludeZeroSHQuantizer, InterfaceScalableQuantizer):
     def __init__(
         self,
         max_sh_degree=3,
@@ -224,10 +226,6 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         n_leafs = {f"{key}_n_leaf": layers[0].n_leaf for key, layers in layers_dict.items() if len(layers) > 0}
         np.savez_compressed(os.path.splitext(ply_path)[0] + ".codebook.npz", **codebooks, **cluster_centers, **n_bits, **n_leafs)
 
-    def save_baselayer(self, model: GaussianModel, ply_path: str, layers_dict: Dict[str, List[Layer]]):
-        self.save_baselayer_codes(model, ply_path, layers_dict)
-        self.save_baselayer_codebook(ply_path, layers_dict)
-
     # ---------------- save enhencement layers ----------------
 
     def save_enhencementlayers_codes(self, ply_path: str, layers_dict: Dict[str, List[Layer]]):
@@ -250,10 +248,6 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
                     cluster_centers=layer.cluster_centers.cpu().numpy(),
                     n_bit=layer.n_bit,
                     n_leaf=layer.n_leaf)
-
-    def save_enhencementlayers(self, ply_path: str, layers_dict: Dict[str, List[Layer]]):
-        self.save_enhencementlayers_codes(ply_path, layers_dict)
-        self.save_enhencementlayers_codebook(ply_path, layers_dict)
 
     # ---------------- save all quantized data ----------------
 
@@ -314,11 +308,6 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
             layers_dict[f'features_rest_{sh_degree}'][0] = layers_dict[f'features_rest_{sh_degree}'][0]._replace(codes=features_rest)
         return layers_dict
 
-    def load_baselayer(self, max_sh_degree: int, ply_path: str, device):
-        layers_dict = self.load_baselayer_codebook(max_sh_degree, ply_path, device)
-        layers_dict = self.load_baselayer_codes(layers_dict, max_sh_degree, ply_path, device)
-        return layers_dict
-
     # ---------------- load enhencement layer ----------------
 
     def load_enhencementlayer_codebooks(self, ply_path: str, layers_dict: Dict[str, List[Layer]], device):
@@ -347,11 +336,6 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
                 layer = np.load(os.path.splitext(ply_path)[0] + f".layer.{key}.{i}.codes.npz")
                 layers_dict[key][i] = layers_dict[key][i]._replace(codes=torch.tensor(layer["codes"], device=device))
                 i += 1
-        return layers_dict
-
-    def load_enhencementlayers(self, ply_path: str, layers_dict: Dict[str, List[Layer]], device):
-        layers_dict = self.load_enhencementlayer_codebooks(ply_path, layers_dict, device)
-        layers_dict = self.load_enhencementlayer_codes(ply_path, layers_dict, device)
         return layers_dict
 
     # ---------------- load all quantized data ----------------
