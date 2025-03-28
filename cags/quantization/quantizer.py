@@ -73,9 +73,9 @@ class ScalableQuantizer(InterfaceScalableQuantizer, ExcludeZeroSHQuantizer):
 
     def encode_layers_exclude_zero(self, values: torch.Tensor, ids: torch.Tensor, codebook: torch.Tensor, n_bit_baselayer: int, n_bits_proposal: int | List[int] | Callable[[int, torch.Tensor, torch.Tensor], List[int]]):
         zeros_mask = ids == 0
-        nonzero_values, nonzero_ids = values[~zeros_mask], ids[~zeros_mask]
-        nonzero_codebook = codebook[nonzero_ids.unique()]
-        nonzero_ids -= 1
+        nonzero_ids = ids[~zeros_mask, ...] - 1
+        nonzero_values = values[~zeros_mask, ...]
+        nonzero_codebook = codebook[1:, ...]
         # assert (nonzero_codebook[nonzero_ids] == codebook[ids][~zeros_mask]).all() # debug
         # layers = encode_layers(nonzero_values, nonzero_ids, nonzero_codebook, n_bit_baselayer, n_bits_proposal, visualize=values.shape[1] == 3)  # debug
         layers = encode_layers(nonzero_values, nonzero_ids, nonzero_codebook, n_bit_baselayer, n_bits_proposal)
