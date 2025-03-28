@@ -245,12 +245,7 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
     # ---------------- save all quantized data ----------------
 
     def save_quantized(self, model: GaussianModel, ply_path: str):
-        if self._codebook_dict == {}:
-            codebook_dict, ids_dict = self.produce_clusters(model, self._codebook_dict)
-            self._codebook_dict = codebook_dict
-        else:
-            ids_dict = self.find_nearest_cluster_id(model, self._codebook_dict)
-            codebook_dict = self._codebook_dict
+        ids_dict, codebook_dict = self.quantize(model, update_codebook=False)
         layers_dict = self.cluster2layers(model, codebook_dict, ids_dict)
         self.save_baselayer(model, ply_path, layers_dict)
         self.save_enhencementlayers(ply_path, layers_dict)
@@ -260,7 +255,6 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
         #     if len(layers_dict[key]) <= 0:
         #         continue
         #     print(key, (self._codebook_dict[key][ids_dict_orig[key]] - codebook_dict[key][ids_dict[key]]).abs().max())
-        return self.apply_clustering(model, codebook_dict, ids_dict)
 
     # ---------------- load base layer ----------------
 
@@ -349,9 +343,9 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
 
     # ---------------- load all quantized data ----------------
 
-    def load_quantized(self, model: GaussianModel, ply_path: str):
+    def load_quantized(self, model: GaussianModel, ply_path: str) -> GaussianModel:
         device = model._xyz.device
         layers_dict = self.load_baselayer(model.max_sh_degree, ply_path, device)
         layers_dict = self.load_enhencementlayers(ply_path, layers_dict, device)
         codebook_dict, ids_dict = self.layers2cluster(model.max_sh_degree, layers_dict)
-        return self.apply_clustering(model, codebook_dict, ids_dict)
+        return self.dequantize(model, ids_dict, codebook_dict)

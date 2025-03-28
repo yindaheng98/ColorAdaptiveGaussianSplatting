@@ -28,7 +28,7 @@ def quantize(source, destination, iteration, sh_degree, device, quantize, draco,
     if quantize:
         shutil.rmtree(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), ignore_errors=True)
         os.makedirs(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), exist_ok=True)
-        gaussians = quantizer.save_quantized(gaussians, output)
+        quantizer.save_quantized(gaussians, output)
     else:
         gaussians = quantizer.load_quantized(gaussians, output)
         output = os.path.join(destination, "point_cloud", "iteration_" + str(iteration), "point_cloud.ply")
