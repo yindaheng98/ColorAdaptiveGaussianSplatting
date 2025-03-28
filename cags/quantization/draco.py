@@ -94,27 +94,13 @@ class DracoCompressedScalableQuantizer(ScalableQuantizer):
             "-qfeaturerest", str(self.draco_q['features_rest']),
         ])
 
-    def load_baselayer(self, max_sh_degree: int, ply_path: str, device):
+    def load_baselayer_codes(self, max_sh_degree: int, ply_path: str, device):
         drc_path = os.path.splitext(ply_path)[0] + ".drc"
         extract_path = os.path.splitext(ply_path)[0] + ".drcdecode.ply"
         subprocess.check_call([
             self.draco_decoder_executable,
             "-i", drc_path, "-o", extract_path,
         ])
-        plydata = PlyData.read(extract_path)
-        codebooks = np.load(os.path.splitext(ply_path)[0] + ".codebook.npz")
-
-        layers_dict = {}
-        elements = plydata['vertex']
-        layers_dict["rotation_re"] = [self.load_baselayer_attr("rotation_re", torch.tensor(elements["rot_re"].copy(), dtype=torch.int64, device=device), codebooks=codebooks, device=device)]
-        layers_dict["rotation_im"] = [self.load_baselayer_attr("rotation_im", torch.tensor(elements["rot_im"].copy(), dtype=torch.int64, device=device), codebooks=codebooks, device=device)]
-        layers_dict["opacity"] = [self.load_baselayer_attr("opacity", torch.tensor(elements["opacity"].copy(), dtype=torch.int64, device=device), codebooks=codebooks, device=device)]
-        layers_dict["scaling"] = [self.load_baselayer_attr("scaling", torch.tensor(elements["scale"].copy(), dtype=torch.int64, device=device), codebooks=codebooks, device=device)]
-        layers_dict["features_dc"] = [self.load_baselayer_attr("features_dc", torch.tensor(elements["f_dc"].copy(), dtype=torch.int64, device=device), codebooks=codebooks, device=device)]
-        for sh_degree in range(max_sh_degree):
-            if not set(f'features_rest_{sh_degree}_{item}' for item in ['codebook', 'cluster_centers', 'n_bits', 'n_leafs']).issubset(codebooks.keys()):
-                layers_dict[f'features_rest_{sh_degree}'] = []
-                continue
-            features_rest = torch.tensor(np.stack([elements[f'f_rest_{sh_degree}_{ch}'] for ch in range(3)], axis=1), dtype=torch.int64, device=device)
-            layers_dict[f'features_rest_{sh_degree}'] = [self.load_baselayer_attr(f'features_rest_{sh_degree}', features_rest.reshape(-1), codebooks=codebooks, device=device)]
+        layers_dict = self.load_baselayer_ply(max_sh_degree, extract_path, device)
+        layers_dict = self.load_baselayer_n_leafs(layers_dict, max_sh_degree, ply_path, device)
         return layers_dict
