@@ -22,12 +22,12 @@ def tile(source, destination, iteration, sh_degree, device, tiling, draco, **kwa
     input = os.path.join(source, "point_cloud", "iteration_" + str(iteration), "point_cloud.ply")
     output = os.path.join(destination, "point_cloud", "iteration_" + str(iteration), "point_cloud_quantized.ply")
     gaussians = GaussianModel(sh_degree).to(device)
-    gaussians.load_ply(input)
     if draco:
         quantizer = TillingScalableQuantizer(DracoCompressedScalableQuantizer(**kwargs), MortonTiling())
     else:
         quantizer = TillingScalableQuantizer(ScalableQuantizer(**kwargs), MortonTiling())
     if tiling:
+        gaussians.load_ply(input)
         shutil.rmtree(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), ignore_errors=True)
         os.makedirs(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), exist_ok=True)
         quantizer.save_quantized_tiles(gaussians, output)

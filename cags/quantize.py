@@ -20,12 +20,12 @@ def quantize(source, destination, iteration, sh_degree, device, quantize, draco,
     input = os.path.join(source, "point_cloud", "iteration_" + str(iteration), "point_cloud.ply")
     output = os.path.join(destination, "point_cloud", "iteration_" + str(iteration), "point_cloud_quantized.ply")
     gaussians = GaussianModel(sh_degree).to(device)
-    gaussians.load_ply(input)
     if draco:
         quantizer = DracoCompressedScalableQuantizer(**kwargs)
     else:
         quantizer = ScalableQuantizer(**kwargs)
     if quantize:
+        gaussians.load_ply(input)
         shutil.rmtree(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), ignore_errors=True)
         os.makedirs(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), exist_ok=True)
         quantizer.save_quantized(gaussians, output)
