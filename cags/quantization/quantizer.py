@@ -271,24 +271,6 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
 
     # ---------------- load base layer ----------------
 
-    def load_baselayer_codes(self, layers_dict: Dict[str, List[Layer]], max_sh_degree: int, ply_path: str, device):
-        plydata = PlyData.read(ply_path)
-
-        elements = plydata['vertex']
-        code_types = dict(dtype=torch.int64, device=device)
-        layers_dict["rotation_re"][0] = layers_dict["rotation_re"][0]._replace(codes=torch.tensor(elements["rot_re"].copy(), **code_types))
-        layers_dict["rotation_im"][0] = layers_dict["rotation_im"][0]._replace(codes=torch.tensor(elements["rot_im"].copy(), **code_types))
-        layers_dict["opacity"][0] = layers_dict["opacity"][0]._replace(codes=torch.tensor(elements["opacity"].copy(), **code_types))
-        layers_dict["scaling"][0] = layers_dict["scaling"][0]._replace(codes=torch.tensor(elements["scale"].copy(), **code_types))
-        layers_dict["features_dc"][0] = layers_dict["features_dc"][0]._replace(codes=torch.tensor(elements["f_dc"].copy(), **code_types))
-        for sh_degree in range(max_sh_degree):
-            if not set(f'f_rest_{sh_degree}_{ch}' for ch in range(3)).issubset(prop.name for prop in elements.properties):
-                layers_dict[f'features_rest_{sh_degree}'] = []
-                continue
-            features_rest = torch.tensor(np.stack([elements[f'f_rest_{sh_degree}_{ch}'] for ch in range(3)], axis=1), **code_types).reshape(-1)
-            layers_dict[f'features_rest_{sh_degree}'][0] = layers_dict[f'features_rest_{sh_degree}'][0]._replace(codes=features_rest)
-        return layers_dict
-
     def load_baselayer_codebook(self, max_sh_degree: int, ply_path: str, device):
         codebooks = np.load(os.path.splitext(ply_path)[0] + ".codebook.npz")
         layers_dict: Dict[str, List[Layer]] = {}
@@ -312,6 +294,24 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
                 layers_dict[f'features_rest_{sh_degree}'] = []
                 continue
             load_baselayer_attr_codebook(f'features_rest_{sh_degree}')
+        return layers_dict
+
+    def load_baselayer_codes(self, layers_dict: Dict[str, List[Layer]], max_sh_degree: int, ply_path: str, device):
+        plydata = PlyData.read(ply_path)
+
+        elements = plydata['vertex']
+        code_types = dict(dtype=torch.int64, device=device)
+        layers_dict["rotation_re"][0] = layers_dict["rotation_re"][0]._replace(codes=torch.tensor(elements["rot_re"].copy(), **code_types))
+        layers_dict["rotation_im"][0] = layers_dict["rotation_im"][0]._replace(codes=torch.tensor(elements["rot_im"].copy(), **code_types))
+        layers_dict["opacity"][0] = layers_dict["opacity"][0]._replace(codes=torch.tensor(elements["opacity"].copy(), **code_types))
+        layers_dict["scaling"][0] = layers_dict["scaling"][0]._replace(codes=torch.tensor(elements["scale"].copy(), **code_types))
+        layers_dict["features_dc"][0] = layers_dict["features_dc"][0]._replace(codes=torch.tensor(elements["f_dc"].copy(), **code_types))
+        for sh_degree in range(max_sh_degree):
+            if not set(f'f_rest_{sh_degree}_{ch}' for ch in range(3)).issubset(prop.name for prop in elements.properties):
+                layers_dict[f'features_rest_{sh_degree}'] = []
+                continue
+            features_rest = torch.tensor(np.stack([elements[f'f_rest_{sh_degree}_{ch}'] for ch in range(3)], axis=1), **code_types).reshape(-1)
+            layers_dict[f'features_rest_{sh_degree}'][0] = layers_dict[f'features_rest_{sh_degree}'][0]._replace(codes=features_rest)
         return layers_dict
 
     def load_baselayer(self, max_sh_degree: int, ply_path: str, device):
