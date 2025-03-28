@@ -66,13 +66,13 @@ class InterfaceScalableQuantizer(AbstractQuantizer):
         pass
 
     @abc.abstractmethod
-    def load_baselayer_codes(self, max_sh_degree: int, ply_path: str, layers_dict: Dict[str, List[Layer]], device) -> Dict[str, List[Layer]]:
+    def load_baselayer_codes(self, max_sh_degree: int, ply_path: str, layers_dict: Dict[str, List[Layer]], device) -> Tuple[Dict[str, List[Layer]], torch.Tensor]:
         pass
 
-    def load_baselayer(self, max_sh_degree: int, ply_path: str, device) -> Dict[str, List[Layer]]:
+    def load_baselayer(self, max_sh_degree: int, ply_path: str, device) -> Tuple[Dict[str, List[Layer]], torch.Tensor]:
         layers_dict = self.load_baselayer_codebook(max_sh_degree, ply_path, device)
-        layers_dict = self.load_baselayer_codes(max_sh_degree, ply_path, layers_dict, device)
-        return layers_dict
+        layers_dict, xyz = self.load_baselayer_codes(max_sh_degree, ply_path, layers_dict, device)
+        return layers_dict, xyz
 
     # ---------------- load enhencement layer ----------------
 
@@ -93,7 +93,7 @@ class InterfaceScalableQuantizer(AbstractQuantizer):
 
     def load_quantized(self, model: GaussianModel, ply_path: str) -> GaussianModel:
         device = model._xyz.device
-        layers_dict = self.load_baselayer(model.max_sh_degree, ply_path, device)
+        layers_dict, xyz = self.load_baselayer(model.max_sh_degree, ply_path, device)
         layers_dict = self.load_enhencementlayers(ply_path, layers_dict, device)
         ids_dict, codebook_dict = self.delayerize(model.max_sh_degree, layers_dict)
-        return self.dequantize(model, ids_dict, codebook_dict)
+        return self.dequantize(model, ids_dict, codebook_dict, xyz=xyz, replace=True)

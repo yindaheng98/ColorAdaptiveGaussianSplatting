@@ -330,7 +330,13 @@ class ScalableQuantizer(InterfaceScalableQuantizer, ExcludeZeroSHQuantizer):
                 continue
             features_rest = torch.tensor(np.stack([elements[f'f_rest_{sh_degree}_{ch}'] for ch in range(3)], axis=1), **code_types).reshape(-1)
             layers_dict[f'features_rest_{sh_degree}'][0] = layers_dict[f'features_rest_{sh_degree}'][0]._replace(codes=features_rest)
-        return layers_dict
+
+        xyz = torch.stack([
+            torch.tensor(elements["x"].copy(), dtype=torch.float32, device=device),
+            torch.tensor(elements["y"].copy(), dtype=torch.float32, device=device),
+            torch.tensor(elements["z"].copy(), dtype=torch.float32, device=device),
+        ], dim=1)
+        return layers_dict, xyz
 
     # ---------------- load enhencement layer ----------------
 
