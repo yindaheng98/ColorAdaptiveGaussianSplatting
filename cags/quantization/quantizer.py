@@ -27,7 +27,7 @@ def shrink_base_layer(layer: Layer):
     return layer._replace(codes=codes, codebook=codebook, cluster_centers=cluster_centers), zero_mask
 
 
-class ScalableQuantizer(ExcludeZeroSHQuantizer, InterfaceScalableQuantizer):
+class ScalableQuantizer(InterfaceScalableQuantizer, ExcludeZeroSHQuantizer):
     def __init__(
         self,
         max_sh_degree=3,
@@ -249,20 +249,6 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer, InterfaceScalableQuantizer):
                     n_bit=layer.n_bit,
                     n_leaf=layer.n_leaf)
 
-    # ---------------- save all quantized data ----------------
-
-    def save_quantized(self, model: GaussianModel, ply_path: str):
-        ids_dict, codebook_dict = self.quantize(model, update_codebook=False)
-        layers_dict = self.layerize(model, ids_dict, codebook_dict, update_layers=False)
-        self.save_baselayer(model, ply_path, layers_dict)
-        self.save_enhencementlayers(ply_path, layers_dict)
-        # ids_dict_orig = ids_dict
-        # codebook_dict, ids_dict = self.delayerize(model, layers_dict)
-        # for key in layers_dict.keys():
-        #     if len(layers_dict[key]) <= 0:
-        #         continue
-        #     print(key, (self._codebook_dict[key][ids_dict_orig[key]] - codebook_dict[key][ids_dict[key]]).abs().max())
-
     # ---------------- load base layer ----------------
 
     def load_baselayer_codebook(self, max_sh_degree: int, ply_path: str, device):
@@ -337,12 +323,3 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer, InterfaceScalableQuantizer):
                 layers_dict[key][i] = layers_dict[key][i]._replace(codes=torch.tensor(layer["codes"], device=device))
                 i += 1
         return layers_dict
-
-    # ---------------- load all quantized data ----------------
-
-    def load_quantized(self, model: GaussianModel, ply_path: str) -> GaussianModel:
-        device = model._xyz.device
-        layers_dict = self.load_baselayer(model.max_sh_degree, ply_path, device)
-        layers_dict = self.load_enhencementlayers(ply_path, layers_dict, device)
-        ids_dict, codebook_dict = self.delayerize(model.max_sh_degree, layers_dict)
-        return self.dequantize(model, ids_dict, codebook_dict)
