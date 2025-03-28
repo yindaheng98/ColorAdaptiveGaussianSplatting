@@ -1,7 +1,10 @@
 import os
 import shutil
 from gaussian_splatting import GaussianModel
+from cags.quantization import ScalableQuantizer, DracoCompressedScalableQuantizer
+from scalablevq import n_bits_proposal_balanced_clusters, n_bits_proposal_balanced_values
 from cags.tiling import MortonTiling
+from cags.tilequant import TillingScalableQuantizer
 
 
 def copy_not_exists(source, destination):
@@ -13,19 +16,25 @@ def copy_not_exists(source, destination):
     shutil.copy(source, destination)
 
 
-def tile(source, destination, iteration, sh_degree, device, **kwargs):
+def tile(source, destination, iteration, sh_degree, device, tiling, draco, **kwargs):
     copy_not_exists(os.path.join(source, "cfg_args"), os.path.join(destination, "cfg_args"))
     copy_not_exists(os.path.join(source, "cameras.json"), os.path.join(destination, "cameras.json"))
     input = os.path.join(source, "point_cloud", "iteration_" + str(iteration), "point_cloud.ply")
+    output = os.path.join(destination, "point_cloud", "iteration_" + str(iteration), "point_cloud_quantized.ply")
     gaussians = GaussianModel(sh_degree).to(device)
     gaussians.load_ply(input)
-    tiling = MortonTiling()
-    tiles = tiling.tiling(gaussians)
-    gaussians = tiling.stitching(tiles)
-    shutil.rmtree(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), ignore_errors=True)
-    os.makedirs(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), exist_ok=True)
-    output = os.path.join(destination, "point_cloud", "iteration_" + str(iteration), "point_cloud.ply")
-    gaussians.save_ply(output)
+    if draco:
+        quantizer = TillingScalableQuantizer(DracoCompressedScalableQuantizer(**kwargs), MortonTiling())
+    else:
+        quantizer = TillingScalableQuantizer(ScalableQuantizer(**kwargs), MortonTiling())
+    if tiling:
+        shutil.rmtree(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), ignore_errors=True)
+        os.makedirs(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), exist_ok=True)
+        quantizer.save_quantized_tiles(gaussians, output)
+    else:
+        gaussians = quantizer.save_quantized_tiles(gaussians, output)
+        output = os.path.join(destination, "point_cloud", "iteration_" + str(iteration), "point_cloud.ply")
+        gaussians.save_ply(output)
 
 
 if __name__ == "__main__":
@@ -37,8 +46,10 @@ if __name__ == "__main__":
     parser.add_argument("--sh_degree", type=int, default=3)
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("-o", "--option", default=[], action='append', type=str)
+    parser.add_argument("--draco", action='store_true')
+    parser.add_argument("--stitching", action='store_true')
     args = parser.parse_args()
     configs = {o.split("=", 1)[0]: eval(o.split("=", 1)[1]) for o in args.option}
     tile(
         source=args.source, destination=args.destination, iteration=args.iteration, sh_degree=args.sh_degree,
-        device=args.device, **configs)
+        device=args.device, tiling=not args.stitching, draco=args.draco, **configs)
