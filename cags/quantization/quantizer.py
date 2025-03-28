@@ -194,7 +194,7 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
             data_full.extend(np.array_split(features_rest, 3, axis=1))
         return data_full
 
-    def save_baselayer_ply(self, model: GaussianModel, ply_path: str, layers_dict: Dict[str, List[Layer]]):
+    def save_baselayer_codes(self, model: GaussianModel, ply_path: str, layers_dict: Dict[str, List[Layer]]):
         dtype_full = self.baselayer_ply_dtype(model.max_sh_degree, layers_dict)
         data_full = self.baselayer_ply_data(model, layers_dict)
 
@@ -203,20 +203,13 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
 
         PlyData([el]).write(ply_path)
 
-    def save_baselayer_n_leaf(self, ply_path: str, layers_dict: Dict[str, List[Layer]]):
-        n_leafs = {key: layers[0].n_leaf for key, layers in layers_dict.items() if len(layers) > 0}
-        np.savez_compressed(os.path.splitext(ply_path)[0] + ".n_leaf.npz", **n_leafs)
-
-    def save_baselayer_codes(self, model: GaussianModel, ply_path: str, layers_dict: Dict[str, List[Layer]]):
-        self.save_baselayer_ply(model, ply_path, layers_dict)
-        self.save_baselayer_n_leaf(ply_path, layers_dict)
-
     def save_baselayer_codebook(self, ply_path: str, layers_dict: Dict[str, List[Layer]]):
         # save base layer codebooks
         codebooks = {f"{key}_codebook": layers[0].codebook.cpu().numpy() for key, layers in layers_dict.items() if len(layers) > 0}
         cluster_centers = {f"{key}_cluster_centers": layers[0].cluster_centers.cpu().numpy() for key, layers in layers_dict.items() if len(layers) > 0}
         n_bits = {f"{key}_n_bits": layers[0].n_bit for key, layers in layers_dict.items() if len(layers) > 0}
-        np.savez_compressed(os.path.splitext(ply_path)[0] + ".codebook.npz", **codebooks, **cluster_centers, **n_bits)
+        n_leafs = {f"{key}_n_leaf": layers[0].n_leaf for key, layers in layers_dict.items() if len(layers) > 0}
+        np.savez_compressed(os.path.splitext(ply_path)[0] + ".codebook.npz", **codebooks, **cluster_centers, **n_bits, **n_leafs)
 
     def save_baselayer(self, model: GaussianModel, ply_path: str, layers_dict: Dict[str, List[Layer]]):
         self.save_baselayer_codes(model, ply_path, layers_dict)
@@ -231,8 +224,7 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
             for i, layer in enumerate(layers[1:]):
                 np.savez_compressed(
                     os.path.splitext(ply_path)[0] + f".layer.{key}.{i + 1}.codes.npz",
-                    codes=layer.codes.cpu().numpy(),
-                    n_leaf=layer.n_leaf)
+                    codes=layer.codes.cpu().numpy())
 
     def save_enhencementlayers_codebook(self, ply_path: str, layers_dict: Dict[str, List[Layer]]):
         for key, layers in layers_dict.items():
@@ -243,7 +235,8 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
                     os.path.splitext(ply_path)[0] + f".layer.{key}.{i + 1}.codebook.npz",
                     codebook=layer.codebook.cpu().numpy(),
                     cluster_centers=layer.cluster_centers.cpu().numpy(),
-                    n_bit=layer.n_bit)
+                    n_bit=layer.n_bit,
+                    n_leaf=layer.n_leaf)
 
     def save_enhencementlayers(self, ply_path: str, layers_dict: Dict[str, List[Layer]]):
         self.save_enhencementlayers_codes(ply_path, layers_dict)
@@ -271,7 +264,7 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
 
     # ---------------- load base layer ----------------
 
-    def load_baselayer_ply(self, max_sh_degree: int, ply_path: str, device):
+    def load_baselayer_codes(self, max_sh_degree: int, ply_path: str, device):
         plydata = PlyData.read(ply_path)
 
         layers_dict = {}
@@ -291,26 +284,6 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
             layers_dict[f'features_rest_{sh_degree}'] = [Layer(codes=features_rest, **others)]
         return layers_dict
 
-    def load_baselayer_n_leafs(self, layers_dict: Dict[str, List[Layer]], max_sh_degree: int, ply_path: str, device):
-        n_leafs = np.load(os.path.splitext(ply_path)[0] + ".n_leaf.npz")
-
-        layers_dict["rotation_re"][0] = layers_dict["rotation_re"][0]._replace(n_leaf=n_leafs["rotation_re"].item())
-        layers_dict["rotation_im"][0] = layers_dict["rotation_im"][0]._replace(n_leaf=n_leafs["rotation_im"].item())
-        layers_dict["opacity"][0] = layers_dict["opacity"][0]._replace(n_leaf=n_leafs["opacity"].item())
-        layers_dict["scaling"][0] = layers_dict["scaling"][0]._replace(n_leaf=n_leafs["scaling"].item())
-        layers_dict["features_dc"][0] = layers_dict["features_dc"][0]._replace(n_leaf=n_leafs["features_dc"].item())
-        for sh_degree in range(max_sh_degree):
-            if f'features_rest_{sh_degree}' not in n_leafs:
-                layers_dict[f'features_rest_{sh_degree}'] = []
-                continue
-            layers_dict[f'features_rest_{sh_degree}'][0] = layers_dict[f'features_rest_{sh_degree}'][0]._replace(n_leaf=n_leafs[f'features_rest_{sh_degree}'].item())
-        return layers_dict
-
-    def load_baselayer_codes(self, max_sh_degree: int, ply_path: str, device):
-        layers_dict = self.load_baselayer_ply(max_sh_degree, ply_path, device)
-        layers_dict = self.load_baselayer_n_leafs(layers_dict, max_sh_degree, ply_path, device)
-        return layers_dict
-
     def load_baselayer_codebook(self, layers_dict: Dict[str, List[Layer]], max_sh_degree: int, ply_path: str, device):
         codebooks = np.load(os.path.splitext(ply_path)[0] + ".codebook.npz")
 
@@ -319,6 +292,7 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
                 codebook=torch.tensor(codebooks[f"{key}_codebook"], device=device),
                 cluster_centers=torch.tensor(codebooks[f"{key}_cluster_centers"], device=device),
                 n_bit=codebooks[f"{key}_n_bits"].item(),
+                n_leaf=codebooks[f"{key}_n_leaf"].item(),
             )
 
         load_baselayer_attr_codebook("rotation_re")
@@ -351,8 +325,8 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
                     codebook=torch.tensor(layer["codebook"], device=device),
                     cluster_centers=torch.tensor(layer["cluster_centers"], device=device),
                     n_bit=layer["n_bit"].item(),
+                    n_leaf=layer["n_leaf"].item(),
                     codes=None,
-                    n_leaf=None,
                 ))
                 i += 1
         return layers_dict
@@ -364,10 +338,7 @@ class ScalableQuantizer(ExcludeZeroSHQuantizer):
             i = 1
             while os.path.exists(os.path.splitext(ply_path)[0] + f".layer.{key}.{i}.codes.npz"):
                 layer = np.load(os.path.splitext(ply_path)[0] + f".layer.{key}.{i}.codes.npz")
-                layers_dict[key][i] = layers_dict[key][i]._replace(
-                    codes=torch.tensor(layer["codes"], device=device),
-                    n_leaf=layer["n_leaf"].item(),
-                )
+                layers_dict[key][i] = layers_dict[key][i]._replace(codes=torch.tensor(layer["codes"], device=device))
                 i += 1
         return layers_dict
 

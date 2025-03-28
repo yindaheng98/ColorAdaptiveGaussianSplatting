@@ -73,7 +73,7 @@ class DracoCompressedScalableQuantizer(ScalableQuantizer):
             data_full.extend(np.array_split(features_rest, 3, axis=1))
         return data_full
 
-    def save_baselayer_ply(self, model: GaussianModel, ply_path: str, layers_dict: Dict[str, List[Layer]]):
+    def save_baselayer_codes(self, model: GaussianModel, ply_path: str, layers_dict: Dict[str, List[Layer]]):
         dtype_full = self.baselayer_ply_dtype(model.max_sh_degree, layers_dict)
         data_full = self.baselayer_ply_data(model, layers_dict)
 
@@ -101,6 +101,4 @@ class DracoCompressedScalableQuantizer(ScalableQuantizer):
             self.draco_decoder_executable,
             "-i", drc_path, "-o", extract_path,
         ])
-        layers_dict = self.load_baselayer_ply(max_sh_degree, extract_path, device)
-        layers_dict = self.load_baselayer_n_leafs(layers_dict, max_sh_degree, ply_path, device)
-        return layers_dict
+        return super().load_baselayer_codes(max_sh_degree, extract_path, device)
