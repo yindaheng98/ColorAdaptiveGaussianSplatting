@@ -6,7 +6,7 @@ from cags.quantization import ScalableQuantizer, DracoCompressedScalableQuantize
 from scalablevq import n_bits_proposal_balanced_clusters, n_bits_proposal_balanced_values
 from cags.tiling import MortonTiling, AverageSplitTiling
 from cags.tilequant import TillingScalableQuantizer
-from cags.interframe import NoInterframeExtractor, InterframeExtractor
+from cags.interframe import NoInterframeExtractor, InterframeExtractor, QuantizedInterframeExtractor
 from cags.codec import Codec
 
 
@@ -51,14 +51,15 @@ def main(
         sh_degree, device, draco, encode,
         tiling_first, tiling_rest, interframe,
         **kwargs):
-    if interframe:
-        frame_extractor = InterframeExtractor()
-    else:
-        frame_extractor = NoInterframeExtractor()
     if draco:
         frame_quantizer = TillingScalableQuantizer(DracoCompressedScalableQuantizer(**kwargs), MortonTiling())
     else:
         frame_quantizer = TillingScalableQuantizer(ScalableQuantizer(**kwargs), MortonTiling())
+    if interframe:
+        frame_extractor = InterframeExtractor()
+        # frame_extractor = QuantizedInterframeExtractor(quantizer=frame_quantizer.quantizer)
+    else:
+        frame_extractor = NoInterframeExtractor()
     codec = Codec(
         frame_extractor=frame_extractor,
         frame_quantizer=frame_quantizer,
