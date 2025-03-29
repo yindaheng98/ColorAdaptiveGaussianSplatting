@@ -34,11 +34,6 @@ class InterframeExtractor(AbstractInterframeExtractor):
         self.diff_thr_feature_dc = diff_thr_feature_dc_stdfactor
         self.diff_thr_feature_rests = diff_thr_feature_rest_stdfactor
 
-        self._last_frame = None
-
-    def init(self, frame: GaussianModel):
-        self._last_frame = frame
-
     def diff_mask_xyz(self, frame: GaussianModel, last_frame: GaussianModel) -> GaussianModel:
         diff = last_frame.get_xyz - frame.get_xyz
         std = torch.cat([frame.get_xyz, last_frame.get_xyz], dim=0).std(dim=0).min()
@@ -60,7 +55,7 @@ class InterframeExtractor(AbstractInterframeExtractor):
         std = torch.cat([frame.get_scaling, last_frame.get_scaling], dim=0).std(dim=0)
         return (diff.abs() > std * self.diff_thr_scaling).any(dim=1)
 
-    def diff_mask(self, frame: GaussianModel, last_frame: GaussianModel) -> GaussianModel:
+    def diff_mask(self, frame: GaussianModel, last_frame: GaussianModel) -> torch.Tensor:
         def diff_mask_attr(attr: torch.Tensor, last_attr: torch.Tensor, diff_thr: float) -> GaussianModel:
             flatten_attr, flatten_last_attr = attr.flatten(1), last_attr.flatten(1)
             std = torch.cat([flatten_attr, flatten_last_attr], dim=0).std(dim=0)
@@ -73,36 +68,3 @@ class InterframeExtractor(AbstractInterframeExtractor):
             diff_mask |= diff_mask_attr(frame.get_features_dc, last_frame.get_features_dc, self.diff_thr_feature_dc)
             diff_mask |= diff_mask_attr(frame.get_features_rest[:, :3, ...], last_frame.get_features_rest[:, :3, ...], self.diff_thr_feature_rests)
         return diff_mask
-
-    def extract_by_mask(self, frame: GaussianModel, diff_mask: torch.Tensor) -> GaussianModel:
-        diff_frame = copy.deepcopy(frame)
-        with torch.no_grad():
-            diff_frame._xyz = nn.Parameter(diff_frame._xyz[diff_mask, ...])
-            diff_frame._rotation = nn.Parameter(diff_frame._rotation[diff_mask, ...])
-            diff_frame._opacity = nn.Parameter(diff_frame._opacity[diff_mask, ...])
-            diff_frame._scaling = nn.Parameter(diff_frame._scaling[diff_mask, ...])
-            diff_frame._features_dc = nn.Parameter(diff_frame._features_dc[diff_mask, ...])
-            diff_frame._features_rest = nn.Parameter(diff_frame._features_rest[diff_mask, ...])
-        return diff_frame
-
-    def merge_by_mask(self, frame: GaussianModel, diff_mask: torch.Tensor, diff_frame: GaussianModel) -> GaussianModel:
-        with torch.no_grad():
-            frame._xyz[diff_mask, ...] = diff_frame._xyz
-            frame._rotation[diff_mask, ...] = diff_frame._rotation
-            frame._opacity[diff_mask, ...] = diff_frame._opacity
-            frame._scaling[diff_mask, ...] = diff_frame._scaling
-            frame._features_dc[diff_mask, ...] = diff_frame._features_dc
-            frame._features_rest[diff_mask, ...] = diff_frame._features_rest
-        return frame
-
-    def extract_next(self, frame: GaussianModel) -> Tuple[GaussianModel, torch.Tensor]:
-        assert self._last_frame is not None, ValueError("No initial frame provided. Call init() first.")
-        diff_mask = self.diff_mask(frame, self._last_frame)
-        diff_frame = self.extract_by_mask(frame, diff_mask)
-        self._last_frame = self.merge_next(diff_mask, diff_frame)
-        return diff_frame, diff_mask
-
-    def merge_next(self, diff_mask: torch.Tensor, diff_frame: GaussianModel) -> GaussianModel:
-        assert self._last_frame is not None, ValueError("No initial frame provided. Call init() first.")
-        self._last_frame = self.merge_by_mask(self._last_frame, diff_mask, diff_frame)
-        return self._last_frame
