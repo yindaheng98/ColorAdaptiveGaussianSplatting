@@ -22,9 +22,9 @@ class TillingScalableQuantizer:
         self.quantizer = quantizer
         self.tiling = tiling
 
-    def quantize_tiling(self, model: GaussianModel) -> Tuple[Dict[str, List[Layer]], List[Tile]]:
-        ids_dict, codebook_dict = self.quantizer.quantize(model, update_codebook=True)
-        layers_dict = self.quantizer.layerize(model, ids_dict, codebook_dict, update_layers=True)
+    def quantize_tiling(self, model: GaussianModel, update=True) -> Tuple[Dict[str, List[Layer]], List[Tile]]:
+        ids_dict, codebook_dict = self.quantizer.quantize(model, update_codebook=update)
+        layers_dict = self.quantizer.layerize(model, ids_dict, codebook_dict, update_layers=update)
         tiles = []
         for tile in tqdm.tqdm(self.tiling.tiling(model), desc="Quantizing tiles"):
             ids_dict, codebook_dict = self.quantizer.quantize(tile, update_codebook=False)
@@ -39,10 +39,11 @@ class TillingScalableQuantizer:
             tiles[i] = tiles[i]._replace(gaussians=tile)
         return self.tiling.stitching([tile.gaussians for tile in tiles])
 
-    def save_quantized_tiles(self, model: GaussianModel, ply_path: str):
-        layers_dict, tiles = self.quantize_tiling(model)
+    def save_codebooks(self, ply_path: str, layers_dict: Dict[str, List[Layer]]):
         self.quantizer.save_baselayer_codebook(ply_path, layers_dict)
         self.quantizer.save_enhencementlayers_codebook(ply_path, layers_dict)
+
+    def save_tiles(self, ply_path: str, tiles: List[Tile]):
         tile_dir = os.path.splitext(ply_path)[0] + "_tiles"
         os.makedirs(tile_dir, exist_ok=True)
         for i, tile in enumerate(tqdm.tqdm(tiles, desc="Saving tiles")):
@@ -50,9 +51,17 @@ class TillingScalableQuantizer:
             self.quantizer.save_baselayer_codes(tile.gaussians, tile_path, tile.layers_dict)
             self.quantizer.save_enhencementlayers_codes(tile_path, tile.layers_dict)
 
-    def load_quantized_tiles(self, model: GaussianModel, ply_path: str) -> GaussianModel:
-        layers_dict = self.quantizer.load_baselayer_codebook(model.max_sh_degree, ply_path, model._xyz.device)
-        layers_dict = self.quantizer.load_enhencementlayers_codebook(ply_path, layers_dict, model._xyz.device)
+    def save_quantized_tiles(self, model: GaussianModel, ply_path: str):
+        layers_dict, tiles = self.quantize_tiling(model)
+        self.save_codebooks(ply_path, layers_dict)
+        self.save_tiles(ply_path, tiles)
+
+    def load_codebooks(self, max_sh_degree: int, ply_path: str, device) -> Dict[str, List[Layer]]:
+        layers_dict = self.quantizer.load_baselayer_codebook(max_sh_degree, ply_path, device)
+        layers_dict = self.quantizer.load_enhencementlayers_codebook(ply_path, layers_dict, device)
+        return layers_dict
+
+    def load_tiles(self, model: GaussianModel, ply_path: str, layers_dict: Dict[str, List[Layer]]) -> GaussianModel:
         tile_dir = os.path.splitext(ply_path)[0] + "_tiles"
         tiles = []
         i = 0
@@ -63,4 +72,9 @@ class TillingScalableQuantizer:
             layers_dict, xyz = self.quantizer.load_baselayer_codes(model.max_sh_degree, tile_path, layers_dict, model._xyz.device)
             tiles.append(Tile(layers_dict=layers_dict, gaussians=copy.deepcopy(model), xyz=xyz))
             i += 1
+        return tiles
+
+    def load_quantized_tiles(self, model: GaussianModel, ply_path: str) -> GaussianModel:
+        layers_dict = self.load_codebooks(model.max_sh_degree, ply_path, model._xyz.device)
+        tiles = self.load_tiles(model, ply_path, layers_dict)
         return self.dequantize_stitching(model, tiles)
