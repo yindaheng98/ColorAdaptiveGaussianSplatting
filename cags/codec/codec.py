@@ -6,7 +6,7 @@ from cags.interframe import InterframeExtractor
 from cags.tilequant import TillingScalableQuantizer
 
 
-class Encoder:
+class Codec:
     def __init__(
         self,
         frame_extractor: InterframeExtractor,

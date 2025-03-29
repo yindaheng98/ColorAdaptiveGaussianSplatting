@@ -20,7 +20,7 @@
             ]
         },
         {
-            "name": "scalable quantize",
+            "name": "quantize dequantize",
             "type": "debugpy",
             "request": "launch",
             "module": "cags.quantize",
@@ -34,6 +34,7 @@
                 "-i",
                 "30000",
                 "--draco",
+                // "--dequantize",
                 "-onum_clusters_scaling=1024",
                 "-on_bits_proposal_scaling=n_bits_proposal_balanced_values(8)",
                 "-onum_clusters_rotation_re=256",
@@ -49,25 +50,7 @@
             ]
         },
         {
-            "name": "scalable dequantize",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "cags.quantize",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "args": [
-                "-s",
-                "output/truck-reduced",
-                "-d",
-                "output/truck-scalable",
-                "-i",
-                "30000",
-                "--draco",
-                "--dequantize",
-            ]
-        },
-        {
-            "name": "tile",
+            "name": "tile stitch",
             "type": "debugpy",
             "request": "launch",
             "module": "cags.tile",
@@ -81,6 +64,7 @@
                 "-i",
                 "30000",
                 "--draco",
+                // "--stitching",
                 "-onum_clusters_scaling=1024",
                 "-on_bits_proposal_scaling=n_bits_proposal_balanced_values(8)",
                 "-onum_clusters_rotation_re=256",
@@ -96,25 +80,7 @@
             ]
         },
         {
-            "name": "stitch",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "cags.tile",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "args": [
-                "-s",
-                "output/truck-reduced",
-                "-d",
-                "output/truck-scalable-tiles",
-                "-i",
-                "30000",
-                "--draco",
-                "--stitching",
-            ]
-        },
-        {
-            "name": "encode",
+            "name": "encode decode",
             "type": "debugpy",
             "request": "launch",
             "module": "cags.encode",
@@ -138,7 +104,7 @@
                 "--frame_end",
                 "300",
                 "--draco",
-                "--decode",
+                // "--decode",
                 // "--no_tiling_rest",
                 "-onum_clusters_scaling=1024",
                 "-on_bits_proposal_scaling=n_bits_proposal_balanced_values(8)",

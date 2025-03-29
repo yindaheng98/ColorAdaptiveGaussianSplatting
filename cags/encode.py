@@ -7,7 +7,7 @@ from scalablevq import n_bits_proposal_balanced_clusters, n_bits_proposal_balanc
 from cags.tiling import MortonTiling, AverageSplitTiling
 from cags.tilequant import TillingScalableQuantizer
 from cags.interframe import InterframeExtractor
-from cags.codec import Encoder
+from cags.codec import Codec
 
 
 def copy_not_exists(source, destination):
@@ -19,7 +19,7 @@ def copy_not_exists(source, destination):
     shutil.copy(source, destination)
 
 
-def encode_once(encoder: Encoder, source, destination, iteration, sh_degree, device, init):
+def encode_once(encoder: Codec, source, destination, iteration, sh_degree, device, init):
     copy_not_exists(os.path.join(source, "cfg_args"), os.path.join(destination, "cfg_args"))
     copy_not_exists(os.path.join(source, "cameras.json"), os.path.join(destination, "cameras.json"))
     input = os.path.join(source, "point_cloud", "iteration_" + str(iteration), "point_cloud.ply")
@@ -34,7 +34,7 @@ def encode_once(encoder: Encoder, source, destination, iteration, sh_degree, dev
         encoder.encode_next(gaussians, output)
 
 
-def decode_once(encoder: Encoder, destination, iteration, sh_degree, device, init):
+def decode_once(encoder: Codec, destination, iteration, sh_degree, device, init):
     output = os.path.join(destination, "point_cloud", "iteration_" + str(iteration), "point_cloud.ply")
     gaussians = GaussianModel(sh_degree).to(device)
     if init:
@@ -44,7 +44,7 @@ def decode_once(encoder: Encoder, destination, iteration, sh_degree, device, ini
     gaussians.save_ply(output)
 
 
-def encode_all(
+def main(
         source, destination, iteration,
         source_init, destination_init, iteration_init,
         frame_format, start_frame, end_frame,
@@ -56,7 +56,7 @@ def encode_all(
         frame_quantizer = TillingScalableQuantizer(DracoCompressedScalableQuantizer(**kwargs), MortonTiling())
     else:
         frame_quantizer = TillingScalableQuantizer(ScalableQuantizer(**kwargs), MortonTiling())
-    extractor = Encoder(
+    extractor = Codec(
         frame_extractor=frame_extractor,
         frame_quantizer=frame_quantizer,
         tiling_rest=AverageSplitTiling() if tiling_rest else None,
@@ -113,7 +113,7 @@ if __name__ == "__main__":
     parser.add_argument("--no_tiling_rest", action='store_true')
     args = parser.parse_args()
     configs = {o.split("=", 1)[0]: eval(o.split("=", 1)[1]) for o in args.option}
-    encode_all(
+    main(
         source=args.source, destination=args.destination, iteration=args.iteration,
         source_init=args.source_init, destination_init=args.destination_init, iteration_init=args.iteration_init,
         frame_format=args.frame_format, start_frame=args.frame_start, end_frame=args.frame_end,
