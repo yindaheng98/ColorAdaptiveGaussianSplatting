@@ -8,16 +8,18 @@ from gaussian_splatting.gaussian_model import GaussianModel
 class InterframeExtractor:
     def __init__(
         self,
-        diff_thr_xyz: float = 0.1,
-        diff_thr_rotation: float = 0.1,
-        diff_thr_opacity: float = 0.1,
-        diff_thr_scaling: float = 0.1,
-        diff_thr_feature_dc: float = 0.1,
-        diff_thr_feature_rest: float = 0.1,
+        diff_thr_xyz_std_factor: float = 0.08,
+        # if difference in xyz > std(xyz) * diff_thr_xyz_std_factor, then it is a diff
+        # idea from 3-sigma rule https://en.wikipedia.org/wiki/Three-sigma_rule
+        diff_thr_rotation: float = 0.8,
+        diff_thr_opacity_absolute: float = 0.2,
+        diff_thr_scaling: float = 0.08,
+        diff_thr_feature_dc: float = 0.08,
+        diff_thr_feature_rest: float = 0.08,
     ):
-        self.diff_thr_xyz = diff_thr_xyz
+        self.diff_thr_xyz = diff_thr_xyz_std_factor
         self.diff_thr_rotation = diff_thr_rotation
-        self.diff_thr_opacity = diff_thr_opacity
+        self.diff_thr_opacity = diff_thr_opacity_absolute
         self.diff_thr_scaling = diff_thr_scaling
         self.diff_thr_feature_dc = diff_thr_feature_dc
         self.diff_thr_feature_rests = diff_thr_feature_rest
@@ -27,13 +29,24 @@ class InterframeExtractor:
     def init(self, frame: GaussianModel):
         self._last_frame = frame
 
+    def diff_mask_xyz(self, frame: GaussianModel, last_frame: GaussianModel) -> GaussianModel:
+        diff = last_frame.get_xyz - frame.get_xyz
+        std = torch.cat([frame.get_xyz, last_frame.get_xyz], dim=0).std(dim=0).min()
+        return (diff.abs() > std * self.diff_thr_xyz).any(dim=1)
+
+    def diff_mask_opacity(self, frame: GaussianModel, last_frame: GaussianModel) -> GaussianModel:
+        diff = last_frame.get_opacity - frame.get_opacity
+        return (diff.abs() > self.diff_thr_opacity).any(dim=1)
+
     def diff_mask(self, frame: GaussianModel, last_frame: GaussianModel) -> GaussianModel:
-        def diff_mask_attr(attr: torch.Tensor, last_attr: torch.Tensor, diff_thr: float) -> GaussianModel:
-            return (attr - last_attr).abs().flatten(1).max(dim=1).values > diff_thr
+        def diff_mask_attr(attr: torch.Tensor, last_attr: torch.Tensor, diff_thr: float, std_policy=lambda x: x) -> GaussianModel:
+            flatten_attr, flatten_last_attr = attr.flatten(1), last_attr.flatten(1)
+            std = std_policy(torch.cat([flatten_attr, flatten_last_attr], dim=0).std(dim=0))
+            return ((flatten_attr - flatten_last_attr).abs() > std * diff_thr).any(dim=1)
         with torch.no_grad():
-            diff_mask = diff_mask_attr(frame.get_xyz, last_frame.get_xyz, self.diff_thr_xyz)
+            diff_mask = self.diff_mask_xyz(frame, last_frame)
             diff_mask |= diff_mask_attr(frame.get_rotation, last_frame.get_rotation, self.diff_thr_rotation)
-            diff_mask |= diff_mask_attr(frame.get_opacity, last_frame.get_opacity, self.diff_thr_opacity)
+            diff_mask |= self.diff_mask_opacity(frame, last_frame)
             diff_mask |= diff_mask_attr(frame.get_scaling, last_frame.get_scaling, self.diff_thr_scaling)
             diff_mask |= diff_mask_attr(frame.get_features_dc, last_frame.get_features_dc, self.diff_thr_feature_dc)
             diff_mask |= diff_mask_attr(frame.get_features_rest, last_frame.get_features_rest, self.diff_thr_feature_rests)
