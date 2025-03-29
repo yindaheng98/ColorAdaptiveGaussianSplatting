@@ -29,16 +29,26 @@ def encode_once(encoder: Encoder, source, destination, iteration, sh_degree, dev
     shutil.rmtree(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), ignore_errors=True)
     os.makedirs(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), exist_ok=True)
     if init:
-        encoder.init(gaussians, output)
+        encoder.encode_init(gaussians, output)
     else:
         encoder.encode_next(gaussians, output)
+
+
+def decode_once(encoder: Encoder, destination, iteration, sh_degree, device, init):
+    output = os.path.join(destination, "point_cloud", "iteration_" + str(iteration), "point_cloud.ply")
+    gaussians = GaussianModel(sh_degree).to(device)
+    if init:
+        gaussians = encoder.decode_init(gaussians, output)
+    else:
+        gaussians = encoder.decode_next(gaussians, output)
+    gaussians.save_ply(output)
 
 
 def encode_all(
         source, destination, iteration,
         source_init, destination_init, iteration_init,
         frame_format, start_frame, end_frame,
-        sh_degree, device, draco,
+        sh_degree, device, draco, encode,
         tiling_first, tiling_rest,
         **kwargs):
     frame_extractor = InterframeExtractor()
@@ -49,23 +59,37 @@ def encode_all(
     extractor = Encoder(
         frame_extractor=frame_extractor,
         frame_quantizer=frame_quantizer,
-        frame_tiling_rest=AverageSplitTiling() if tiling_rest else None,
+        tiling_rest=AverageSplitTiling() if tiling_rest else None,
         tiling_first=tiling_first,
     )
-    encode_once(
-        extractor,
-        source=source_init, destination=destination_init, iteration=iteration_init,
-        sh_degree=sh_degree, device=device, init=True
-    )
+    if encode:
+        encode_once(
+            extractor,
+            source=source_init, destination=destination_init, iteration=iteration_init,
+            sh_degree=sh_degree, device=device, init=True
+        )
+    else:
+        decode_once(
+            extractor,
+            destination=destination_init, iteration=iteration_init,
+            sh_degree=sh_degree, device=device, init=True
+        )
     for i in range(start_frame, end_frame + 1):
         frame = frame_format % i
         frame_source = os.path.join(source, frame)
         frame_destination = os.path.join(destination, frame)
-        encode_once(
-            extractor,
-            source=frame_source, destination=frame_destination, iteration=iteration,
-            sh_degree=sh_degree, device=device, init=False
-        )
+        if encode:
+            encode_once(
+                extractor,
+                source=frame_source, destination=frame_destination, iteration=iteration,
+                sh_degree=sh_degree, device=device, init=False
+            )
+        else:
+            decode_once(
+                extractor,
+                destination=frame_destination, iteration=iteration,
+                sh_degree=sh_degree, device=device, init=False
+            )
 
 
 if __name__ == "__main__":
@@ -84,6 +108,7 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("-o", "--option", default=[], action='append', type=str)
     parser.add_argument("--draco", action='store_true')
+    parser.add_argument("--decode", action='store_true')
     parser.add_argument("--no_tiling_first", action='store_true')
     parser.add_argument("--no_tiling_rest", action='store_true')
     args = parser.parse_args()
@@ -92,6 +117,6 @@ if __name__ == "__main__":
         source=args.source, destination=args.destination, iteration=args.iteration,
         source_init=args.source_init, destination_init=args.destination_init, iteration_init=args.iteration_init,
         frame_format=args.frame_format, start_frame=args.frame_start, end_frame=args.frame_end,
-        sh_degree=args.sh_degree, device=args.device, draco=args.draco,
+        sh_degree=args.sh_degree, device=args.device, draco=args.draco, encode=not args.decode,
         tiling_first=not args.no_tiling_first, tiling_rest=not args.no_tiling_rest,
         **configs)
