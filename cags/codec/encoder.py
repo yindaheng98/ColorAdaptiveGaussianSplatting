@@ -28,5 +28,5 @@ class Encoder:
         else:
             ids_dict, codebook_dict = self.frame_quantizer.quantizer.quantize(diff_gaussians, update_codebook=False)
             layers_dict = self.frame_quantizer.quantizer.layerize(diff_gaussians, ids_dict, codebook_dict, update_layers=False)
-            self.frame_quantizer.quantizer.save_baselayer_codes(model, ply_path, layers_dict)
+            self.frame_quantizer.quantizer.save_baselayer_codes(diff_gaussians, ply_path, layers_dict)
             self.frame_quantizer.quantizer.save_enhencementlayers_codes(ply_path, layers_dict)
