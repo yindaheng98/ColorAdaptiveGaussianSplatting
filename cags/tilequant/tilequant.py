@@ -52,7 +52,7 @@ class TillingScalableQuantizer:
             self.quantizer.save_enhencementlayers_codes(tile_path, tile.layers_dict)
 
     def save_quantized_tiles(self, model: GaussianModel, ply_path: str):
-        layers_dict, tiles = self.quantize_tiling(model)
+        layers_dict, tiles = self.quantize_tiling(model, update=False)
         self.save_codebooks(ply_path, layers_dict)
         self.save_tiles(ply_path, tiles)
 
