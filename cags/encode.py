@@ -1,10 +1,12 @@
 import os
 import shutil
+import torch
 from gaussian_splatting import GaussianModel
 from cags.quantization import ScalableQuantizer, DracoCompressedScalableQuantizer
 from scalablevq import n_bits_proposal_balanced_clusters, n_bits_proposal_balanced_values
 from cags.tiling import MortonTiling
 from cags.tilequant import TillingScalableQuantizer
+from cags.interframe import InterframeExtractor
 
 
 def copy_not_exists(source, destination):
@@ -16,25 +18,22 @@ def copy_not_exists(source, destination):
     shutil.copy(source, destination)
 
 
-def encode_once(source, destination, iteration, sh_degree, device, tiling, draco, **kwargs):
+def encode_once(encoder: InterframeExtractor, source, destination, iteration, sh_degree, device, init, draco, **kwargs):
     copy_not_exists(os.path.join(source, "cfg_args"), os.path.join(destination, "cfg_args"))
     copy_not_exists(os.path.join(source, "cameras.json"), os.path.join(destination, "cameras.json"))
     input = os.path.join(source, "point_cloud", "iteration_" + str(iteration), "point_cloud.ply")
-    output = os.path.join(destination, "point_cloud", "iteration_" + str(iteration), "point_cloud_quantized.ply")
+    output = os.path.join(destination, "point_cloud", "iteration_" + str(iteration), "point_cloud.ply")
     gaussians = GaussianModel(sh_degree).to(device)
-    if draco:
-        quantizer = TillingScalableQuantizer(DracoCompressedScalableQuantizer(**kwargs), MortonTiling())
-    else:
-        quantizer = TillingScalableQuantizer(ScalableQuantizer(**kwargs), MortonTiling())
-    if tiling:
-        gaussians.load_ply(input)
-        shutil.rmtree(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), ignore_errors=True)
-        os.makedirs(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), exist_ok=True)
-        quantizer.save_quantized_tiles(gaussians, output)
-    else:
-        gaussians = quantizer.load_quantized_tiles(gaussians, output)
-        output = os.path.join(destination, "point_cloud", "iteration_" + str(iteration), "point_cloud.ply")
+    gaussians.load_ply(input)
+    shutil.rmtree(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), ignore_errors=True)
+    os.makedirs(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), exist_ok=True)
+    if init:
+        encoder.init(gaussians)
         gaussians.save_ply(output)
+    else:
+        diff_gaussians, diff_mask = encoder.extract_next(gaussians)
+        diff_gaussians.save_ply(output)
+        torch.save(diff_mask, os.path.join(destination, "point_cloud", "iteration_" + str(iteration), "diff_mask.pt"))
 
 
 def encode_all(
@@ -42,7 +41,21 @@ def encode_all(
         source_init, destination_init, iteration_init,
         frame_format, start_frame, end_frame,
         sh_degree, device, tiling, draco, **kwargs):
-    pass
+    extractor = InterframeExtractor(**kwargs)
+    encode_once(
+        extractor,
+        source=source_init, destination=destination_init, iteration=iteration_init,
+        sh_degree=sh_degree, device=device, init=True, draco=draco
+    )
+    for i in range(start_frame, end_frame + 1):
+        frame = frame_format % i
+        frame_source = os.path.join(source, frame)
+        frame_destination = os.path.join(destination, frame)
+        encode_once(
+            extractor,
+            source=frame_source, destination=frame_destination, iteration=iteration,
+            sh_degree=sh_degree, device=device, tiling=tiling, init=False, draco=draco
+        )
 
 
 if __name__ == "__main__":

@@ -1,0 +1,1 @@
+from .interframe import InterframeExtractor
