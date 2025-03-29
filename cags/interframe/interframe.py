@@ -1,7 +1,4 @@
-import copy
-from typing import Tuple
 import torch
-import torch.nn as nn
 from gaussian_splatting.gaussian_model import GaussianModel
 
 from .abc import AbstractInterframeExtractor
@@ -55,11 +52,12 @@ class InterframeExtractor(AbstractInterframeExtractor):
         std = torch.cat([frame.get_scaling, last_frame.get_scaling], dim=0).std(dim=0)
         return (diff.abs() > std * self.diff_thr_scaling).any(dim=1)
 
-    def diff_mask(self, frame: GaussianModel, last_frame: GaussianModel) -> torch.Tensor:
+    def diff_mask(self, frame: GaussianModel) -> torch.Tensor:
         def diff_mask_attr(attr: torch.Tensor, last_attr: torch.Tensor, diff_thr: float) -> GaussianModel:
             flatten_attr, flatten_last_attr = attr.flatten(1), last_attr.flatten(1)
             std = torch.cat([flatten_attr, flatten_last_attr], dim=0).std(dim=0)
             return ((flatten_attr - flatten_last_attr).abs() > std * diff_thr).any(dim=1)
+        last_frame = self._last_frame
         with torch.no_grad():
             diff_mask = self.diff_mask_xyz(frame, last_frame)
             diff_mask |= self.diff_mask_rotation(frame, last_frame)  # most difference comes from here

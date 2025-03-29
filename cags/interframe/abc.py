@@ -13,7 +13,7 @@ class AbstractInterframeExtractor(abc.ABC):
         self._last_frame = frame
 
     @abc.abstractmethod
-    def diff_mask(self, frame: GaussianModel, last_frame: GaussianModel) -> torch.Tensor:
+    def diff_mask(self, frame: GaussianModel) -> torch.Tensor:
         pass
 
     def extract_by_mask(self, frame: GaussianModel, diff_mask: torch.Tensor) -> GaussianModel:
@@ -39,7 +39,7 @@ class AbstractInterframeExtractor(abc.ABC):
 
     def extract_next(self, frame: GaussianModel) -> Tuple[GaussianModel, torch.Tensor]:
         assert self._last_frame is not None, ValueError("No initial frame provided. Call init() first.")
-        diff_mask = self.diff_mask(frame, self._last_frame)
+        diff_mask = self.diff_mask(frame)
         diff_frame = self.extract_by_mask(frame, diff_mask)
         self._last_frame = self.merge_next(diff_mask, diff_frame)
         return diff_frame, diff_mask
@@ -51,11 +51,5 @@ class AbstractInterframeExtractor(abc.ABC):
 
 
 class NoInterframeExtractor(AbstractInterframeExtractor):
-    def init(self, frame: GaussianModel):
-        pass
-
-    def extract_next(self, frame: GaussianModel) -> Tuple[GaussianModel, torch.Tensor]:
-        return frame, torch.ones(frame.get_xyz.shape[0], dtype=torch.bool, device=frame.get_xyz.device)
-
-    def merge_next(self, diff_mask: torch.Tensor, diff_frame: GaussianModel) -> GaussianModel:
-        return diff_frame
+    def diff_mask(self, frame: GaussianModel) -> torch.Tensor:
+        torch.ones(frame.get_xyz.shape[0], dtype=torch.bool, device=frame.get_xyz.device)
