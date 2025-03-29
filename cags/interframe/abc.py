@@ -52,4 +52,4 @@ class AbstractInterframeExtractor(abc.ABC):
 
 class NoInterframeExtractor(AbstractInterframeExtractor):
     def diff_mask(self, frame: GaussianModel) -> torch.Tensor:
-        torch.ones(frame.get_xyz.shape[0], dtype=torch.bool, device=frame.get_xyz.device)
+        return torch.ones(frame.get_xyz.shape[0], dtype=torch.bool, device=frame.get_xyz.device)

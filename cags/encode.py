@@ -55,11 +55,15 @@ def main(
         frame_quantizer = TillingScalableQuantizer(DracoCompressedScalableQuantizer(**kwargs), MortonTiling())
     else:
         frame_quantizer = TillingScalableQuantizer(ScalableQuantizer(**kwargs), MortonTiling())
-    if interframe:
-        frame_extractor = InterframeExtractor()
-        # frame_extractor = QuantizedInterframeExtractor(quantizer=frame_quantizer.quantizer)
-    else:
-        frame_extractor = NoInterframeExtractor()
+    match interframe:
+        case "none":
+            frame_extractor = NoInterframeExtractor()
+        case "quantize":
+            frame_extractor = QuantizedInterframeExtractor(quantizer=frame_quantizer.quantizer)
+        case "interframe":
+            frame_extractor = InterframeExtractor()
+        case _:
+            raise ValueError(f"Unknown interframe option: {interframe}")
     codec = Codec(
         frame_extractor=frame_extractor,
         frame_quantizer=frame_quantizer,
@@ -115,7 +119,7 @@ if __name__ == "__main__":
     parser.add_argument("--decode", action='store_true')
     parser.add_argument("--no_tiling_first", action='store_true')
     parser.add_argument("--no_tiling_rest", action='store_true')
-    parser.add_argument("--no_interframe", action='store_true')
+    parser.add_argument("--interframe", choices=["none", "quantize", "interframe"], default="interframe")
     args = parser.parse_args()
     configs = {o.split("=", 1)[0]: eval(o.split("=", 1)[1]) for o in args.option}
     main(
@@ -123,5 +127,5 @@ if __name__ == "__main__":
         source_init=args.source_init, destination_init=args.destination_init, iteration_init=args.iteration_init,
         frame_format=args.frame_format, start_frame=args.frame_start, end_frame=args.frame_end,
         sh_degree=args.sh_degree, device=args.device, draco=args.draco, encode=not args.decode,
-        tiling_first=not args.no_tiling_first, tiling_rest=not args.no_tiling_rest, interframe=not args.no_interframe,
+        tiling_first=not args.no_tiling_first, tiling_rest=not args.no_tiling_rest, interframe=args.interframe,
         **configs)
