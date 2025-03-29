@@ -98,5 +98,10 @@ class InterframeExtractor:
         assert self._last_frame is not None, ValueError("No initial frame provided. Call init() first.")
         diff_mask = self.diff_mask(frame, self._last_frame)
         diff_frame = self.extract_by_mask(frame, diff_mask)
-        self._last_frame = self.merge_by_mask(frame, diff_mask, diff_frame)
+        self._last_frame = self.merge_next(diff_mask, diff_frame)
         return diff_frame, diff_mask
+
+    def merge_next(self, diff_mask: torch.Tensor, diff_frame: GaussianModel) -> GaussianModel:
+        assert self._last_frame is not None, ValueError("No initial frame provided. Call init() first.")
+        self._last_frame = self.merge_by_mask(self._last_frame, diff_mask, diff_frame)
+        return self._last_frame
