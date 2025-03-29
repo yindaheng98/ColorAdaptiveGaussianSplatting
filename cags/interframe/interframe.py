@@ -15,7 +15,7 @@ class InterframeExtractor:
         diff_thr_opacity_absolute: float = 0.2,
         diff_thr_scaling_stdfactor: float = 0.8,
         diff_thr_feature_dc_stdfactor: float = 0.8,
-        diff_thr_feature_rest_stdfactor: float = 0.8,
+        diff_thr_feature_rest_stdfactor: float = 1.0,
     ):
         """
         Args:
@@ -66,7 +66,7 @@ class InterframeExtractor:
             return ((flatten_attr - flatten_last_attr).abs() > std * diff_thr).any(dim=1)
         with torch.no_grad():
             diff_mask = self.diff_mask_xyz(frame, last_frame)
-            diff_mask |= self.diff_mask_rotation(frame, last_frame)
+            diff_mask |= self.diff_mask_rotation(frame, last_frame)  # most difference comes from here
             diff_mask |= self.diff_mask_opacity(frame, last_frame)
             diff_mask |= self.diff_mask_scaling(frame, last_frame)
             diff_mask |= diff_mask_attr(frame.get_features_dc, last_frame.get_features_dc, self.diff_thr_feature_dc)
