@@ -32,6 +32,8 @@ class MortonTiling(AbstractTiling):
         int_xyz = model._xyz.detach().sort(dim=0).indices.sort(dim=0).indices.to(dtype=torch.int64)  # float point xyz to int xyz, keep the order
         morton_code = morton(int_xyz[..., 0], int_xyz[..., 1], int_xyz[..., 2])
         order = morton_code.argsort()
+        if order.shape[0] // self.n_gaussians_pre_tile <= 1:
+            return [order]
         tile_idx = torch.linspace(0, order.shape[0], order.shape[0] // self.n_gaussians_pre_tile).round().to(dtype=torch.int64)
         tile_idx[-1] = order.shape[0]
         tile_size = tile_idx[1:] - tile_idx[:-1]

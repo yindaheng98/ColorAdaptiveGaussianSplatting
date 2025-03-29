@@ -7,6 +7,7 @@ from scalablevq import n_bits_proposal_balanced_clusters, n_bits_proposal_balanc
 from cags.tiling import MortonTiling
 from cags.tilequant import TillingScalableQuantizer
 from cags.interframe import InterframeExtractor
+from cags.codec import Encoder
 
 
 def copy_not_exists(source, destination):
@@ -18,7 +19,7 @@ def copy_not_exists(source, destination):
     shutil.copy(source, destination)
 
 
-def encode_once(encoder: InterframeExtractor, source, destination, iteration, sh_degree, device, init, draco, **kwargs):
+def encode_once(encoder: Encoder, source, destination, iteration, sh_degree, device, init):
     copy_not_exists(os.path.join(source, "cfg_args"), os.path.join(destination, "cfg_args"))
     copy_not_exists(os.path.join(source, "cameras.json"), os.path.join(destination, "cameras.json"))
     input = os.path.join(source, "point_cloud", "iteration_" + str(iteration), "point_cloud.ply")
@@ -28,24 +29,29 @@ def encode_once(encoder: InterframeExtractor, source, destination, iteration, sh
     shutil.rmtree(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), ignore_errors=True)
     os.makedirs(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), exist_ok=True)
     if init:
-        encoder.init(gaussians)
-        gaussians.save_ply(output)
+        encoder.init(gaussians, output)
     else:
-        diff_gaussians, diff_mask = encoder.extract_next(gaussians)
-        diff_gaussians.save_ply(output)
-        torch.save(diff_mask, os.path.join(destination, "point_cloud", "iteration_" + str(iteration), "diff_mask.pt"))
+        encoder.encode_next(gaussians, output)
 
 
 def encode_all(
         source, destination, iteration,
         source_init, destination_init, iteration_init,
         frame_format, start_frame, end_frame,
-        sh_degree, device, tiling, draco, **kwargs):
-    extractor = InterframeExtractor(**kwargs)
+        sh_degree, device, draco, **kwargs):
+    frame_extractor = InterframeExtractor()
+    if draco:
+        frame_quantizer = TillingScalableQuantizer(DracoCompressedScalableQuantizer(**kwargs), MortonTiling())
+    else:
+        frame_quantizer = TillingScalableQuantizer(ScalableQuantizer(**kwargs), MortonTiling())
+    extractor = Encoder(
+        frame_extractor=frame_extractor,
+        frame_quantizer=frame_quantizer
+    )
     encode_once(
         extractor,
         source=source_init, destination=destination_init, iteration=iteration_init,
-        sh_degree=sh_degree, device=device, init=True, draco=draco
+        sh_degree=sh_degree, device=device, init=True
     )
     for i in range(start_frame, end_frame + 1):
         frame = frame_format % i
@@ -54,7 +60,7 @@ def encode_all(
         encode_once(
             extractor,
             source=frame_source, destination=frame_destination, iteration=iteration,
-            sh_degree=sh_degree, device=device, tiling=tiling, init=False, draco=draco
+            sh_degree=sh_degree, device=device, init=False
         )
 
 
@@ -74,11 +80,10 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("-o", "--option", default=[], action='append', type=str)
     parser.add_argument("--draco", action='store_true')
-    parser.add_argument("--stitching", action='store_true')
     args = parser.parse_args()
     configs = {o.split("=", 1)[0]: eval(o.split("=", 1)[1]) for o in args.option}
     encode_all(
         source=args.source, destination=args.destination, iteration=args.iteration,
         source_init=args.source_init, destination_init=args.destination_init, iteration_init=args.iteration_init,
         frame_format=args.frame_format, start_frame=args.frame_start, end_frame=args.frame_end,
-        sh_degree=args.sh_degree, device=args.device, tiling=not args.stitching, draco=args.draco, **configs)
+        sh_degree=args.sh_degree, device=args.device, draco=args.draco, **configs)
