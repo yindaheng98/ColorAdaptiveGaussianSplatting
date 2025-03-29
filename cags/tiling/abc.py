@@ -46,7 +46,7 @@ class AbstractTiling(abc.ABC):
 
 
 class AverageSplitTiling(AbstractTiling):
-    def __init__(self, n_gaussians_pre_tile: int = 8192):
+    def __init__(self, n_gaussians_pre_tile: int = 4096):
         self.n_gaussians_pre_tile = n_gaussians_pre_tile
 
     def average_split(self, order: torch.Tensor) -> List[torch.Tensor]:
