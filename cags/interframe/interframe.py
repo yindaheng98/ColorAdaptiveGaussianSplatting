@@ -14,8 +14,8 @@ class InterframeExtractor:
         diff_thr_rotation_eular_degree: float = 30,
         diff_thr_opacity_absolute: float = 0.2,
         diff_thr_scaling_stdfactor: float = 0.8,
-        diff_thr_feature_dc: float = 0.08,
-        diff_thr_feature_rest: float = 0.08,
+        diff_thr_feature_dc_stdfactor: float = 0.8,
+        diff_thr_feature_rest_stdfactor: float = 0.8,
     ):
         """
         Args:
@@ -30,8 +30,8 @@ class InterframeExtractor:
         self.diff_thr_rotation = diff_thr_rotation_eular_degree
         self.diff_thr_opacity = diff_thr_opacity_absolute
         self.diff_thr_scaling = diff_thr_scaling_stdfactor
-        self.diff_thr_feature_dc = diff_thr_feature_dc
-        self.diff_thr_feature_rests = diff_thr_feature_rest
+        self.diff_thr_feature_dc = diff_thr_feature_dc_stdfactor
+        self.diff_thr_feature_rests = diff_thr_feature_rest_stdfactor
 
         self._last_frame = None
 
@@ -60,9 +60,9 @@ class InterframeExtractor:
         return (diff.abs() > std * self.diff_thr_scaling).any(dim=1)
 
     def diff_mask(self, frame: GaussianModel, last_frame: GaussianModel) -> GaussianModel:
-        def diff_mask_attr(attr: torch.Tensor, last_attr: torch.Tensor, diff_thr: float, std_policy=lambda x: x) -> GaussianModel:
+        def diff_mask_attr(attr: torch.Tensor, last_attr: torch.Tensor, diff_thr: float) -> GaussianModel:
             flatten_attr, flatten_last_attr = attr.flatten(1), last_attr.flatten(1)
-            std = std_policy(torch.cat([flatten_attr, flatten_last_attr], dim=0).std(dim=0))
+            std = torch.cat([flatten_attr, flatten_last_attr], dim=0).std(dim=0)
             return ((flatten_attr - flatten_last_attr).abs() > std * diff_thr).any(dim=1)
         with torch.no_grad():
             diff_mask = self.diff_mask_xyz(frame, last_frame)
@@ -70,7 +70,7 @@ class InterframeExtractor:
             diff_mask |= self.diff_mask_opacity(frame, last_frame)
             diff_mask |= self.diff_mask_scaling(frame, last_frame)
             diff_mask |= diff_mask_attr(frame.get_features_dc, last_frame.get_features_dc, self.diff_thr_feature_dc)
-            diff_mask |= diff_mask_attr(frame.get_features_rest, last_frame.get_features_rest, self.diff_thr_feature_rests)
+            diff_mask |= diff_mask_attr(frame.get_features_rest[:, :3, ...], last_frame.get_features_rest[:, :3, ...], self.diff_thr_feature_rests)
         return diff_mask
 
     def extract_by_mask(self, frame: GaussianModel, diff_mask: torch.Tensor) -> GaussianModel:
