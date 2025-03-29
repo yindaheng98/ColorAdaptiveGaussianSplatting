@@ -4,7 +4,7 @@ import torch
 from gaussian_splatting import GaussianModel
 from cags.quantization import ScalableQuantizer, DracoCompressedScalableQuantizer
 from scalablevq import n_bits_proposal_balanced_clusters, n_bits_proposal_balanced_values
-from cags.tiling import MortonTiling
+from cags.tiling import MortonTiling, AverageSplitTiling
 from cags.tilequant import TillingScalableQuantizer
 from cags.interframe import InterframeExtractor
 from cags.codec import Encoder
@@ -49,8 +49,8 @@ def encode_all(
     extractor = Encoder(
         frame_extractor=frame_extractor,
         frame_quantizer=frame_quantizer,
+        frame_tiling_rest=AverageSplitTiling() if tiling_rest else None,
         tiling_first=tiling_first,
-        tiling_rest=tiling_rest,
     )
     encode_once(
         extractor,

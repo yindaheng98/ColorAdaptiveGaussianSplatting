@@ -1,30 +1,43 @@
 import numpy as np
+import torch
 from gaussian_splatting import GaussianModel
+from cags.tiling import AverageSplitTiling
 from cags.interframe import InterframeExtractor
 from cags.tilequant import TillingScalableQuantizer
 
 
 class Encoder:
     def __init__(
-        self, frame_extractor: InterframeExtractor, frame_quantizer: TillingScalableQuantizer,
-        tiling_first: bool = True, tiling_rest: bool = True
+        self,
+        frame_extractor: InterframeExtractor,
+        frame_quantizer: TillingScalableQuantizer,
+        frame_tiling_rest: AverageSplitTiling = None,
+        tiling_first: bool = True
     ):
         self.frame_extractor = frame_extractor
         self.frame_quantizer = frame_quantizer
+        self.frame_tiling_rest = frame_tiling_rest
         self.tiling_first = tiling_first
-        self.tiling_rest = tiling_rest
+
+        self._tile_ids = None
 
     def init(self, model: GaussianModel, ply_path: str):
-        self.frame_extractor.init(model)
         if self.tiling_first:
-            self.frame_quantizer.save_quantized_tiles(model, ply_path)
+            layers_dict, tiles, self._tile_ids = self.frame_quantizer.quantize_tiling(model, update=False)
+            self.frame_quantizer.save_codebooks(ply_path, layers_dict)
+            self.frame_quantizer.save_tiles(ply_path, tiles)
+            model = self.frame_quantizer.tiling.sort_as_tiles(model, self._tile_ids)
         else:
             self.frame_quantizer.quantizer.save_quantized(model, ply_path)
+        self.frame_extractor.init(model)
 
     def encode_next(self, model: GaussianModel, ply_path: str):
+        if self.tiling_first:
+            model = self.frame_quantizer.tiling.sort_as_tiles(model, self._tile_ids)
         diff_gaussians, diff_mask = self.frame_extractor.extract_next(model)
-        if self.tiling_rest:
-            layers_dict, tiles, _ = self.frame_quantizer.quantize_tiling(diff_gaussians, update=False)
+        if self.frame_tiling_rest is not None:
+            tile_ids = self.frame_tiling_rest.average_split(self._tile_ids)
+            layers_dict, tiles, _ = self.frame_quantizer.quantize_tiling(diff_gaussians, update=False, tile_gaussians_ids=tile_ids)
             self.frame_quantizer.save_tiles(ply_path, tiles)
         else:
             ids_dict, codebook_dict = self.frame_quantizer.quantizer.quantize(diff_gaussians, update_codebook=False)

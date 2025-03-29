@@ -138,7 +138,7 @@
                 "--frame_end",
                 "300",
                 "--draco",
-                "--no_tiling_rest",
+                // "--no_tiling_rest",
                 "-onum_clusters_scaling=1024",
                 "-on_bits_proposal_scaling=n_bits_proposal_balanced_values(8)",
                 "-onum_clusters_rotation_re=256",
