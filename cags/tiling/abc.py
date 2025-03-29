@@ -43,3 +43,19 @@ class AbstractTiling(abc.ABC):
 
     def sort_as_tiles(self, model: GaussianModel, tile_gaussians_ids: List[torch.Tensor]) -> GaussianModel:
         return self.stitching(self.pick_tiles(model, tile_gaussians_ids))
+
+
+class AverageSplitTiling(AbstractTiling):
+    def __init__(self, n_gaussians_pre_tile: int = 8192):
+        self.n_gaussians_pre_tile = n_gaussians_pre_tile
+
+    def average_split(self, order: torch.Tensor) -> List[torch.Tensor]:
+        if order.shape[0] // self.n_gaussians_pre_tile <= 1:
+            return [order]
+        tile_idx = torch.linspace(0, order.shape[0], order.shape[0] // self.n_gaussians_pre_tile).round().to(dtype=torch.int64)
+        tile_idx[-1] = order.shape[0]
+        tile_size = tile_idx[1:] - tile_idx[:-1]
+        return torch.split(order, tile_size.tolist(), dim=0)
+
+    def produce_tiling(self, model: GaussianModel) -> List[torch.Tensor]:
+        return self.average_split(torch.arange(model._xyz.shape[0], device=model._xyz.device))

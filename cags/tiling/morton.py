@@ -4,7 +4,7 @@ import torch
 
 from gaussian_splatting.gaussian_model import GaussianModel
 
-from .abc import AbstractTiling
+from .abc import AverageSplitTiling
 
 
 def __part1by2_64(n):
@@ -24,7 +24,7 @@ def morton(x: torch.Tensor, y: torch.Tensor, z: torch.Tensor):
     return code
 
 
-class MortonTiling(AbstractTiling):
+class MortonTiling(AverageSplitTiling):
     def __init__(self, n_gaussians_pre_tile: int = 8192):
         self.n_gaussians_pre_tile = n_gaussians_pre_tile
 
@@ -32,9 +32,4 @@ class MortonTiling(AbstractTiling):
         int_xyz = model._xyz.detach().sort(dim=0).indices.sort(dim=0).indices.to(dtype=torch.int64)  # float point xyz to int xyz, keep the order
         morton_code = morton(int_xyz[..., 0], int_xyz[..., 1], int_xyz[..., 2])
         order = morton_code.argsort()
-        if order.shape[0] // self.n_gaussians_pre_tile <= 1:
-            return [order]
-        tile_idx = torch.linspace(0, order.shape[0], order.shape[0] // self.n_gaussians_pre_tile).round().to(dtype=torch.int64)
-        tile_idx[-1] = order.shape[0]
-        tile_size = tile_idx[1:] - tile_idx[:-1]
-        return torch.split(order, tile_size.tolist(), dim=0)
+        return self.average_split(order)
