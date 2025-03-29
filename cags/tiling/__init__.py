@@ -1,2 +1,2 @@
-from .abc import AbstractTiling
+from .abc import AbstractTiling, AverageSplitTiling
 from .morton import MortonTiling
