@@ -22,15 +22,16 @@ class TillingScalableQuantizer:
         self.quantizer = quantizer
         self.tiling = tiling
 
-    def quantize_tiling(self, model: GaussianModel, update=True) -> Tuple[Dict[str, List[Layer]], List[Tile]]:
+    def quantize_tiling(self, model: GaussianModel, update=True) -> Tuple[Dict[str, List[Layer]], List[Tile], List[torch.Tensor]]:
         ids_dict, codebook_dict = self.quantizer.quantize(model, update_codebook=update)
         layers_dict = self.quantizer.layerize(model, ids_dict, codebook_dict, update_layers=update)
+        raw_tiles, tile_ids = self.tiling.tiling(model)
         tiles = []
-        for tile in tqdm.tqdm(self.tiling.tiling(model), desc="Quantizing tiles"):
+        for tile in tqdm.tqdm(raw_tiles, desc="Quantizing tiles"):
             ids_dict, codebook_dict = self.quantizer.quantize(tile, update_codebook=False)
             layers_dict = self.quantizer.layerize(tile, ids_dict, codebook_dict, update_layers=False)
             tiles.append(Tile(gaussians=tile, layers_dict=layers_dict))
-        return layers_dict, tiles
+        return layers_dict, tiles, tile_ids
 
     def dequantize_stitching(self, model: GaussianModel, tiles: List[Tile]) -> GaussianModel:
         for i in range(len(tiles)):
@@ -52,7 +53,7 @@ class TillingScalableQuantizer:
             self.quantizer.save_enhencementlayers_codes(tile_path, tile.layers_dict)
 
     def save_quantized_tiles(self, model: GaussianModel, ply_path: str):
-        layers_dict, tiles = self.quantize_tiling(model, update=False)
+        layers_dict, tiles, _ = self.quantize_tiling(model, update=False)
         self.save_codebooks(ply_path, layers_dict)
         self.save_tiles(ply_path, tiles)
 

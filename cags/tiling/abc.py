@@ -1,6 +1,6 @@
 import abc
 import copy
-from typing import List
+from typing import List, Tuple
 
 import torch
 import torch.nn as nn
@@ -23,8 +23,12 @@ class AbstractTiling(abc.ABC):
         tile._rotation = nn.Parameter(model._rotation[tile_gaussians_id])
         return tile
 
-    def tiling(self, model: GaussianModel) -> List[GaussianModel]:
-        return [self.pick_tile(model, tile_gaussians_id) for tile_gaussians_id in self.produce_tiling(model)]
+    def pick_tiles(self, model: GaussianModel, tile_gaussians_ids: List[torch.Tensor]) -> List[GaussianModel]:
+        return [self.pick_tile(model, tile_gaussians_id) for tile_gaussians_id in tile_gaussians_ids]
+
+    def tiling(self, model: GaussianModel) -> Tuple[List[GaussianModel], List[torch.Tensor]]:
+        tile_gaussians_ids = self.produce_tiling(model)
+        return self.pick_tiles(model, tile_gaussians_ids), tile_gaussians_ids
 
     def stitching(self, models: List[GaussianModel]) -> GaussianModel:
         model = copy.deepcopy(models[0])
@@ -35,3 +39,6 @@ class AbstractTiling(abc.ABC):
         model._scaling = nn.Parameter(torch.cat([m._scaling for m in models], dim=0))
         model._rotation = nn.Parameter(torch.cat([m._rotation for m in models], dim=0))
         return model
+
+    def sort_as_tiles(self, model: GaussianModel, tile_gaussians_ids: List[torch.Tensor]) -> GaussianModel:
+        return self.stitching(self.pick_tiles(model, tile_gaussians_ids))

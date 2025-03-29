@@ -24,7 +24,7 @@ class Encoder:
     def encode_next(self, model: GaussianModel, ply_path: str):
         diff_gaussians, diff_mask = self.frame_extractor.extract_next(model)
         if self.tiling_rest:
-            layers_dict, tiles = self.frame_quantizer.quantize_tiling(diff_gaussians, update=False)
+            layers_dict, tiles, _ = self.frame_quantizer.quantize_tiling(diff_gaussians, update=False)
             self.frame_quantizer.save_tiles(ply_path, tiles)
         else:
             ids_dict, codebook_dict = self.frame_quantizer.quantizer.quantize(diff_gaussians, update_codebook=False)
