@@ -1,3 +1,4 @@
+import numpy as np
 from gaussian_splatting import GaussianModel
 from cags.interframe import InterframeExtractor
 from cags.tilequant import TillingScalableQuantizer
@@ -30,3 +31,4 @@ class Encoder:
             layers_dict = self.frame_quantizer.quantizer.layerize(diff_gaussians, ids_dict, codebook_dict, update_layers=False)
             self.frame_quantizer.quantizer.save_baselayer_codes(diff_gaussians, ply_path, layers_dict)
             self.frame_quantizer.quantizer.save_enhencementlayers_codes(ply_path, layers_dict)
+        np.savez_compressed(ply_path.replace(".ply", ".mask.npz"), mask=np.packbits(diff_mask.cpu().numpy(), axis=-1, bitorder='little'))
