@@ -2,14 +2,14 @@ import numpy as np
 import torch
 from gaussian_splatting import GaussianModel
 from cags.tiling import AverageSplitTiling
-from cags.interframe import InterframeExtractor
+from cags.interframe import AbstractInterframeExtractor
 from cags.tilequant import TillingScalableQuantizer
 
 
 class Codec:
     def __init__(
         self,
-        frame_extractor: InterframeExtractor,
+        frame_extractor: AbstractInterframeExtractor,
         frame_quantizer: TillingScalableQuantizer,
         tiling_first: bool = True,
         tiling_rest: AverageSplitTiling = None,

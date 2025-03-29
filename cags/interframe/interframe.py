@@ -4,10 +4,11 @@ import torch
 import torch.nn as nn
 from gaussian_splatting.gaussian_model import GaussianModel
 
+from .abc import AbstractInterframeExtractor
 from .rotation import quaternion_invert, quaternion_multiply, quaternion_to_matrix
 
 
-class InterframeExtractor:
+class InterframeExtractor(AbstractInterframeExtractor):
     def __init__(
         self,
         diff_thr_xyz_stdfactor: float = 0.08,

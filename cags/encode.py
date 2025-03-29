@@ -6,7 +6,7 @@ from cags.quantization import ScalableQuantizer, DracoCompressedScalableQuantize
 from scalablevq import n_bits_proposal_balanced_clusters, n_bits_proposal_balanced_values
 from cags.tiling import MortonTiling, AverageSplitTiling
 from cags.tilequant import TillingScalableQuantizer
-from cags.interframe import InterframeExtractor
+from cags.interframe import NoInterframeExtractor, InterframeExtractor
 from cags.codec import Codec
 
 
@@ -49,9 +49,12 @@ def main(
         source_init, destination_init, iteration_init,
         frame_format, start_frame, end_frame,
         sh_degree, device, draco, encode,
-        tiling_first, tiling_rest,
+        tiling_first, tiling_rest, interframe,
         **kwargs):
-    frame_extractor = InterframeExtractor()
+    if interframe:
+        frame_extractor = InterframeExtractor()
+    else:
+        frame_extractor = NoInterframeExtractor()
     if draco:
         frame_quantizer = TillingScalableQuantizer(DracoCompressedScalableQuantizer(**kwargs), MortonTiling())
     else:
@@ -111,6 +114,7 @@ if __name__ == "__main__":
     parser.add_argument("--decode", action='store_true')
     parser.add_argument("--no_tiling_first", action='store_true')
     parser.add_argument("--no_tiling_rest", action='store_true')
+    parser.add_argument("--no_interframe", action='store_true')
     args = parser.parse_args()
     configs = {o.split("=", 1)[0]: eval(o.split("=", 1)[1]) for o in args.option}
     main(
@@ -118,5 +122,5 @@ if __name__ == "__main__":
         source_init=args.source_init, destination_init=args.destination_init, iteration_init=args.iteration_init,
         frame_format=args.frame_format, start_frame=args.frame_start, end_frame=args.frame_end,
         sh_degree=args.sh_degree, device=args.device, draco=args.draco, encode=not args.decode,
-        tiling_first=not args.no_tiling_first, tiling_rest=not args.no_tiling_rest,
+        tiling_first=not args.no_tiling_first, tiling_rest=not args.no_tiling_rest, interframe=not args.no_interframe,
         **configs)
