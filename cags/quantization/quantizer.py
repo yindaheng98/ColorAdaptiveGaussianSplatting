@@ -157,7 +157,7 @@ class ScalableQuantizer(InterfaceScalableQuantizer, ExcludeZeroSHQuantizer):
         return self.encode_layers(model._opacity.detach(), ids, codebook, self.n_bit_baselayer_opacity, self.n_bits_proposal_opacity)
 
     def layerize_scaling(self, model: GaussianModel, ids, codebook):
-        return self.encode_layers(model._scaling.detach(), ids, codebook, self.n_bit_baselayer_scaling, self.n_bits_proposal_scaling)
+        return self.encode_layers(model.get_scaling.detach(), ids, codebook, self.n_bit_baselayer_scaling, self.n_bits_proposal_scaling)
 
     def layerize_unknown(self, model: GaussianModel, ids_dict: Dict[str, torch.Tensor], codebook_dict: Dict[str, torch.Tensor]):
         layers_dict: Dict[str, List[Layer]] = {}
