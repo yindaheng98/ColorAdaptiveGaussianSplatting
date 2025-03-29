@@ -22,10 +22,10 @@ class TillingScalableQuantizer:
         self.quantizer = quantizer
         self.tiling = tiling
 
-    def quantize_tiling(self, model: GaussianModel, update=True) -> Tuple[Dict[str, List[Layer]], List[Tile], List[torch.Tensor]]:
+    def quantize_tiling(self, model: GaussianModel, update=True, tile_gaussians_ids: List[torch.Tensor] = None) -> Tuple[Dict[str, List[Layer]], List[Tile], List[torch.Tensor]]:
         ids_dict, codebook_dict = self.quantizer.quantize(model, update_codebook=update)
         layers_dict = self.quantizer.layerize(model, ids_dict, codebook_dict, update_layers=update)
-        raw_tiles, tile_ids = self.tiling.tiling(model)
+        raw_tiles, tile_ids = self.tiling.tiling(model, tile_gaussians_ids=tile_gaussians_ids)
         tiles = []
         for tile in tqdm.tqdm(raw_tiles, desc="Quantizing tiles"):
             ids_dict, codebook_dict = self.quantizer.quantize(tile, update_codebook=False)

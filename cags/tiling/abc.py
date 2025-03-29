@@ -26,8 +26,9 @@ class AbstractTiling(abc.ABC):
     def pick_tiles(self, model: GaussianModel, tile_gaussians_ids: List[torch.Tensor]) -> List[GaussianModel]:
         return [self.pick_tile(model, tile_gaussians_id) for tile_gaussians_id in tile_gaussians_ids]
 
-    def tiling(self, model: GaussianModel) -> Tuple[List[GaussianModel], List[torch.Tensor]]:
-        tile_gaussians_ids = self.produce_tiling(model)
+    def tiling(self, model: GaussianModel, tile_gaussians_ids: List[torch.Tensor] = None) -> Tuple[List[GaussianModel], List[torch.Tensor]]:
+        if tile_gaussians_ids is None:
+            tile_gaussians_ids = self.produce_tiling(model)
         return self.pick_tiles(model, tile_gaussians_ids), tile_gaussians_ids
 
     def stitching(self, models: List[GaussianModel]) -> GaussianModel:
