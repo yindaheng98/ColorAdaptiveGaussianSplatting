@@ -19,7 +19,7 @@ def copy_not_exists(source, destination):
     shutil.copy(source, destination)
 
 
-def encode_once(encoder: Codec, source, destination, iteration, sh_degree, device, init):
+def encode_once(codec: Codec, source, destination, iteration, sh_degree, device, init):
     copy_not_exists(os.path.join(source, "cfg_args"), os.path.join(destination, "cfg_args"))
     copy_not_exists(os.path.join(source, "cameras.json"), os.path.join(destination, "cameras.json"))
     input = os.path.join(source, "point_cloud", "iteration_" + str(iteration), "point_cloud.ply")
@@ -29,18 +29,18 @@ def encode_once(encoder: Codec, source, destination, iteration, sh_degree, devic
     shutil.rmtree(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), ignore_errors=True)
     os.makedirs(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), exist_ok=True)
     if init:
-        encoder.encode_init(gaussians, output)
+        codec.encode_init(gaussians, output)
     else:
-        encoder.encode_next(gaussians, output)
+        codec.encode_next(gaussians, output)
 
 
-def decode_once(encoder: Codec, destination, iteration, sh_degree, device, init):
+def decode_once(codec: Codec, destination, iteration, sh_degree, device, init):
     output = os.path.join(destination, "point_cloud", "iteration_" + str(iteration), "point_cloud.ply")
     gaussians = GaussianModel(sh_degree).to(device)
     if init:
-        gaussians = encoder.decode_init(gaussians, output)
+        gaussians = codec.decode_init(gaussians, output)
     else:
-        gaussians = encoder.decode_next(gaussians, output)
+        gaussians = codec.decode_next(gaussians, output)
     gaussians.save_ply(output)
 
 
@@ -56,7 +56,7 @@ def main(
         frame_quantizer = TillingScalableQuantizer(DracoCompressedScalableQuantizer(**kwargs), MortonTiling())
     else:
         frame_quantizer = TillingScalableQuantizer(ScalableQuantizer(**kwargs), MortonTiling())
-    extractor = Codec(
+    codec = Codec(
         frame_extractor=frame_extractor,
         frame_quantizer=frame_quantizer,
         tiling_rest=AverageSplitTiling() if tiling_rest else None,
@@ -64,13 +64,13 @@ def main(
     )
     if encode:
         encode_once(
-            extractor,
+            codec,
             source=source_init, destination=destination_init, iteration=iteration_init,
             sh_degree=sh_degree, device=device, init=True
         )
     else:
         decode_once(
-            extractor,
+            codec,
             destination=destination_init, iteration=iteration_init,
             sh_degree=sh_degree, device=device, init=True
         )
@@ -80,13 +80,13 @@ def main(
         frame_destination = os.path.join(destination, frame)
         if encode:
             encode_once(
-                extractor,
+                codec,
                 source=frame_source, destination=frame_destination, iteration=iteration,
                 sh_degree=sh_degree, device=device, init=False
             )
         else:
             decode_once(
-                extractor,
+                codec,
                 destination=frame_destination, iteration=iteration,
                 sh_degree=sh_degree, device=device, init=False
             )
