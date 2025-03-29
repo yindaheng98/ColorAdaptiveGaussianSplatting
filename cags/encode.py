@@ -38,7 +38,9 @@ def encode_all(
         source, destination, iteration,
         source_init, destination_init, iteration_init,
         frame_format, start_frame, end_frame,
-        sh_degree, device, draco, **kwargs):
+        sh_degree, device, draco,
+        tiling_first, tiling_rest,
+        **kwargs):
     frame_extractor = InterframeExtractor()
     if draco:
         frame_quantizer = TillingScalableQuantizer(DracoCompressedScalableQuantizer(**kwargs), MortonTiling())
@@ -46,7 +48,9 @@ def encode_all(
         frame_quantizer = TillingScalableQuantizer(ScalableQuantizer(**kwargs), MortonTiling())
     extractor = Encoder(
         frame_extractor=frame_extractor,
-        frame_quantizer=frame_quantizer
+        frame_quantizer=frame_quantizer,
+        tiling_first=tiling_first,
+        tiling_rest=tiling_rest,
     )
     encode_once(
         extractor,
@@ -80,10 +84,14 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, default="cuda")
     parser.add_argument("-o", "--option", default=[], action='append', type=str)
     parser.add_argument("--draco", action='store_true')
+    parser.add_argument("--no_tiling_first", action='store_true')
+    parser.add_argument("--no_tiling_rest", action='store_true')
     args = parser.parse_args()
     configs = {o.split("=", 1)[0]: eval(o.split("=", 1)[1]) for o in args.option}
     encode_all(
         source=args.source, destination=args.destination, iteration=args.iteration,
         source_init=args.source_init, destination_init=args.destination_init, iteration_init=args.iteration_init,
         frame_format=args.frame_format, start_frame=args.frame_start, end_frame=args.frame_end,
-        sh_degree=args.sh_degree, device=args.device, draco=args.draco, **configs)
+        sh_degree=args.sh_degree, device=args.device, draco=args.draco,
+        tiling_first=not args.no_tiling_first, tiling_rest=not args.no_tiling_rest,
+        **configs)
