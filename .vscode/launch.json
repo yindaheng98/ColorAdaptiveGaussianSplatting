@@ -193,11 +193,11 @@
             "justMyCode": false,
             "args": [
                 "--local",
-                "output/coffee_martini/frame1/ours_10000/renders/00001",
+                "output/coffee_martini/frame1/ours_10000/renders/00006",
                 "--reference",
-                "output/coffee_martini/frame1/ours_10000/renders/00000",
+                "output/coffee_martini/frame1/ours_10000/renders/00005",
                 "--warped",
-                "output/coffee_martini/frame1/ours_10000/wraped/00001",
+                "output/coffee_martini/frame1/ours_10000/wraped/00006",
                 "--debug"
             ]
         },
