@@ -114,7 +114,7 @@ class InterfaceScalableQuantizer(AbstractQuantizer):
         filenames_src = self.filenames_quantized_codebook(max_sh_degree, ply_path_src, layer_dict)
         filenames_dst = self.filenames_quantized_codebook(max_sh_degree, ply_path_dst, layer_dict)
         for src, dst in zip(filenames_src, filenames_dst):
-            if src == dst or not os.path.exists(src):
+            if src == dst:
                 continue
             if os.path.exists(dst):
                 os.remove(dst)
@@ -124,7 +124,7 @@ class InterfaceScalableQuantizer(AbstractQuantizer):
         filenames_src = self.filenames_quantized_codes(max_sh_degree, ply_path_src, layer_dict)
         filenames_dst = self.filenames_quantized_codes(max_sh_degree, ply_path_dst, layer_dict)
         for src, dst in zip(filenames_src, filenames_dst):
-            if src == dst or not os.path.exists(src):
+            if src == dst:
                 continue
             if os.path.exists(dst):
                 os.remove(dst)
