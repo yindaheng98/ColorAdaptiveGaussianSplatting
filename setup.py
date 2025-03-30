@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-from setuptools import setup
+from setuptools import setup, find_packages
 
 with open("README.md", "r", encoding='utf8') as fh:
     long_description = fh.read()
@@ -9,6 +9,7 @@ with open("README.md", "r", encoding='utf8') as fh:
 package_dir = {
     'cags': 'cags',
 }
+packages = ['cags'] + ["cags." + package for package in find_packages(where="cags")]
 
 setup(
     name='cags',
@@ -19,8 +20,8 @@ setup(
     description=u'CAGS: Color-Adaptive 3D Gaussian Splatting',
     long_description=long_description,
     long_description_content_type="text/markdown",
-    package_dir=package_dir,
-    packages=[key for key in package_dir],
+    packages=packages,
+    package_dir={'cags': 'cags'},
     classifiers=[
         "Programming Language :: Python :: 3",
         "License :: OSI Approved :: MIT License",
