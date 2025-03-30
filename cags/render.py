@@ -52,7 +52,7 @@ def rendering(dataset: CameraDataset, gaussians: GaussianModel, save: str):
         pbar.set_postfix({"PSNR": psnr(rendering, gt).mean().item(), "LPIPS": lpips(rendering, gt).mean().item()})
         torchvision.utils.save_image(rendering, os.path.join(render_path, '{0:05d}'.format(idx) + ".png"))
         torchvision.utils.save_image(gt, os.path.join(gt_path, '{0:05d}'.format(idx) + ".png"))
-        depth = out["depth"]
+        depth = 1 / out["depth"]
         cv2.imwrite(os.path.join(render_path, '{0:05d}'.format(idx) + ".depth.png"), depth_colormap(depth))
         np.savez_compressed(os.path.join(render_path, '{0:05d}'.format(idx) + ".depth.npz"), depth=depth.cpu().numpy())
         with open(os.path.join(render_path, '{0:05d}'.format(idx) + ".camera.json"), "w", encoding="utf8") as f:

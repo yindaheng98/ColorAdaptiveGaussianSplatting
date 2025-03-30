@@ -173,7 +173,7 @@
             "justMyCode": false,
             "args": [
                 "-s",
-                "output/coffee_martini/frame1",
+                "data/coffee_martini/frame1",
                 "-d",
                 "output/coffee_martini/frame1",
                 "-i",
