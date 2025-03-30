@@ -35,5 +35,6 @@ setup(
         'numpy',
         'gaussian-splatting',
         'reduced-3dgs',
+        'opencv-python',
     ],
 )

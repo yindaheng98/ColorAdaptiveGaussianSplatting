@@ -1,10 +1,14 @@
+import json
 from typing import Tuple
+import numpy as np
 import torch
 import os
 from tqdm import tqdm
 from os import makedirs
 import torchvision
+import cv2
 from gaussian_splatting import GaussianModel, CameraTrainableGaussianModel
+from gaussian_splatting.camera import camera2dict
 from gaussian_splatting.dataset import CameraDataset, JSONCameraDataset, TrainableCameraDataset
 from gaussian_splatting.dataset.colmap import ColmapCameraDataset, ColmapTrainableCameraDataset
 from gaussian_splatting.utils import psnr
@@ -26,6 +30,15 @@ def prepare_rendering(sh_degree: int, source: str, device: str, mode: str, load_
     return dataset, gaussians
 
 
+def depth_colormap(depth):
+    depth_valid = depth[depth < depth.max()]
+    depth_max = torch.topk(depth_valid, depth_valid.shape[0]//10).values[-1]
+    depth_min = depth_valid.min()
+    depth_preview = torch.clamp((depth-depth_min)/(depth_max-depth_min), 0, 1)
+    depth_colored = cv2.applyColorMap((depth_preview[0, ...]*255).type(torch.uint8).cpu().numpy(), cv2.COLORMAP_JET)
+    return depth_colored
+
+
 def rendering(dataset: CameraDataset, gaussians: GaussianModel, save: str):
     render_path = os.path.join(save, "renders")
     gt_path = os.path.join(save, "gt")
@@ -39,6 +52,11 @@ def rendering(dataset: CameraDataset, gaussians: GaussianModel, save: str):
         pbar.set_postfix({"PSNR": psnr(rendering, gt).mean().item(), "LPIPS": lpips(rendering, gt).mean().item()})
         torchvision.utils.save_image(rendering, os.path.join(render_path, '{0:05d}'.format(idx) + ".png"))
         torchvision.utils.save_image(gt, os.path.join(gt_path, '{0:05d}'.format(idx) + ".png"))
+        depth = out["depth"]
+        cv2.imwrite(os.path.join(render_path, '{0:05d}'.format(idx) + ".depth.png"), depth_colormap(depth))
+        np.savez_compressed(os.path.join(render_path, '{0:05d}'.format(idx) + ".depth.npz"), depth=depth.cpu().numpy())
+        with open(os.path.join(render_path, '{0:05d}'.format(idx) + ".camera.json"), "w", encoding="utf8") as f:
+            json.dump(camera2dict(camera, idx), f, indent=2)
 
 
 if __name__ == "__main__":

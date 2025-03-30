@@ -23,7 +23,7 @@ pip install --upgrade git+https://github.com/yindaheng98/reduced-3dgs.git@main
 ```shell
 git clone --recursive https://github.com/yindaheng98/ColorAdaptiveGaussianSplatting
 cd ColorAdaptiveGaussianSplatting
-pip install tqdm plyfile scikit-learn numpy
+pip install tqdm plyfile scikit-learn numpy opencv-python
 pip install --upgrade --target . --no-deps git+https://github.com/yindaheng98/ScalableVQ.git@master
 pip install --upgrade --target . --no-deps git+https://github.com/yindaheng98/PostRenderPerspectiveAlign.git@master
 pip install --upgrade --target . --no-deps git+https://github.com/yindaheng98/gaussian-splatting.git@master
