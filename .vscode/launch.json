@@ -165,6 +165,26 @@
             ]
         },
         {
+            "name": "render",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "cags.render",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "-s",
+                "output/coffee_martini/frame1",
+                "-d",
+                "output/coffee_martini/frame1",
+                "-i",
+                "10000",
+                "--mode",
+                "base",
+                "--load_camera",
+                "output/coffee_martini/frame1/cameras.json",
+            ]
+        },
+        {
             "name": "compare ply",
             "type": "debugpy",
             "request": "launch",
