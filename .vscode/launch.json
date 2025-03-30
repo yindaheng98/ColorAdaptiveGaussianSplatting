@@ -185,6 +185,23 @@
             ]
         },
         {
+            "name": "warping",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "prpa",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": [
+                "--local",
+                "output/coffee_martini/frame1/ours_10000/renders/00001",
+                "--reference",
+                "output/coffee_martini/frame1/ours_10000/renders/00000",
+                "--warped",
+                "output/coffee_martini/frame1/ours_10000/wraped/00001",
+                "--debug"
+            ]
+        },
+        {
             "name": "compare ply",
             "type": "debugpy",
             "request": "launch",
