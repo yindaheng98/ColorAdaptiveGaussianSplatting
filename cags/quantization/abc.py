@@ -1,4 +1,6 @@
 import abc
+import os
+import shutil
 from typing import Dict, List, Tuple
 
 import torch
@@ -97,3 +99,37 @@ class InterfaceScalableQuantizer(AbstractQuantizer):
         layers_dict = self.load_enhencementlayers(ply_path, layers_dict, device)
         ids_dict, codebook_dict = self.delayerize(model.max_sh_degree, layers_dict)
         return self.dequantize(model, ids_dict, codebook_dict, xyz=xyz, replace=True)
+
+    # ---------------- pickup quantized data ----------------
+
+    @abc.abstractmethod
+    def filenames_quantized_codebook(self, max_sh_degree: int, ply_path: str, layer_dict: Dict[str, int]) -> List[str]:
+        pass
+
+    @abc.abstractmethod
+    def filenames_quantized_codes(self, max_sh_degree: int, ply_path: str, layer_dict: Dict[str, int]) -> List[str]:
+        pass
+
+    def pickup_quantized_codebook(self, max_sh_degree: int, ply_path_src: str, ply_path_dst: str, layer_dict: Dict[str, int]):
+        filenames_src = self.filenames_quantized_codebook(max_sh_degree, ply_path_src, layer_dict)
+        filenames_dst = self.filenames_quantized_codebook(max_sh_degree, ply_path_dst, layer_dict)
+        for src, dst in zip(filenames_src, filenames_dst):
+            if src == dst or not os.path.exists(src):
+                continue
+            if os.path.exists(dst):
+                os.remove(dst)
+            shutil.copy(src, dst)
+
+    def pickup_quantized_codes(self, max_sh_degree: int, ply_path_src: str, ply_path_dst: str, layer_dict: Dict[str, int]):
+        filenames_src = self.filenames_quantized_codes(max_sh_degree, ply_path_src, layer_dict)
+        filenames_dst = self.filenames_quantized_codes(max_sh_degree, ply_path_dst, layer_dict)
+        for src, dst in zip(filenames_src, filenames_dst):
+            if src == dst or not os.path.exists(src):
+                continue
+            if os.path.exists(dst):
+                os.remove(dst)
+            shutil.copy(src, dst)
+
+    def pickup_quantized(self, max_sh_degree: int, ply_path_src: str, ply_path_dst: str, layer_dict: Dict[str, int]):
+        self.pickup_quantized_codebook(max_sh_degree, ply_path_src, ply_path_dst, layer_dict)
+        self.pickup_quantized_codes(max_sh_degree, ply_path_src, ply_path_dst, layer_dict)

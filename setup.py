@@ -13,7 +13,7 @@ packages = ['cags'] + ["cags." + package for package in find_packages(where="cag
 
 setup(
     name='cags',
-    version='0.7',
+    version='0.8',
     author='yindaheng98',
     author_email='yindaheng98@gmail.com',
     url='https://github.com/yindaheng98/cags',

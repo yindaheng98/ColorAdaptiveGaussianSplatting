@@ -108,3 +108,14 @@ class DracoCompressedScalableQuantizer(ScalableQuantizer):
                 break
             true_max_sh_degree += 1
         return super().load_baselayer_codes(true_max_sh_degree, extract_path, layers_dict, device)
+
+    def filenames_quantized_codes(self, max_sh_degree: int, ply_path: str, layer_dict: Dict[str, int]) -> List[str]:
+        filenames = [os.path.splitext(ply_path)[0] + ".drc"]
+        keys = ["rotation_re", "rotation_im", "opacity", "scaling", "features_dc", *(f"features_rest_{i}" for i in range(max_sh_degree))]
+        for key in keys:
+            assert key in layer_dict, f"{key} not exists? layer_dict should contain: " + ", ".join(keys)
+            if layer_dict[key] < 1:
+                continue
+            for i in range(1, layer_dict[key] + 1):
+                filenames.append(os.path.splitext(ply_path)[0] + f".layer.{key}.{i}.codes.npz")
+        return filenames
