@@ -74,9 +74,9 @@ class ScalableQuantizer(InterfaceScalableQuantizer, ExcludeZeroSHQuantizer):
 
         self._layers_dict = {}
 
-    def encode_layers(self, values: torch.Tensor, ids: torch.Tensor, codebook: torch.Tensor, n_bit_baselayer: int, n_bits_proposal: int | List[int] | Callable[[int, torch.Tensor, torch.Tensor], List[int]]):
+    def encode_layers(self, values: torch.Tensor, ids: torch.Tensor, codebook: torch.Tensor, n_bit_baselayer: int, n_bits_proposal: int | List[int] | Callable[[int, torch.Tensor, torch.Tensor], List[int]], **kwargs):
         # return encode_layers(values, ids, codebook, n_bit_baselayer, n_bits_proposal, visualize=values.shape[1] == 3)  # debug
-        return encode_layers(values, ids, codebook, n_bit_baselayer, n_bits_proposal)
+        return encode_layers(values, ids, codebook, n_bit_baselayer, n_bits_proposal, **kwargs)
 
     def encode_known_layers(self, ids: torch.Tensor, codebook: torch.Tensor, layers: List[Layer]):
         return encode_known_layers(ids, codebook, layers)
