@@ -79,3 +79,6 @@ class TillingScalableQuantizer:
         layers_dict = self.load_codebooks(model.max_sh_degree, ply_path, model._xyz.device)
         tiles = self.load_tiles(model, ply_path, layers_dict)
         return self.dequantize_stitching(model, tiles)
+
+    def pickup_quantized(self, max_sh_degree: int, input: str, output: str, layers: Dict[str, List[Layer]]):
+        raise NotImplementedError("Pickup quantization is not implemented for TillingScalableQuantizer.")  # TODO
