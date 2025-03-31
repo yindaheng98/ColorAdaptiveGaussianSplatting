@@ -15,13 +15,18 @@ def copy_not_exists(source, destination):
     shutil.copy(source, destination)
 
 
-def decode_once(codec: Codec, destination, iteration, sh_degree, device, init):
+def decode_once(codec: Codec, source, destination, iteration, sh_degree, device, init):
+    copy_not_exists(os.path.join(source, "cfg_args"), os.path.join(destination, "cfg_args"))
+    copy_not_exists(os.path.join(source, "cameras.json"), os.path.join(destination, "cameras.json"))
+    input = os.path.join(source, "point_cloud", "iteration_" + str(iteration), "point_cloud.ply")
     output = os.path.join(destination, "point_cloud", "iteration_" + str(iteration), "point_cloud.ply")
     gaussians = GaussianModel(sh_degree).to(device)
+    shutil.rmtree(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), ignore_errors=True)
+    os.makedirs(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), exist_ok=True)
     if init:
-        gaussians = codec.decode_init(gaussians, output)
+        gaussians = codec.decode_init(gaussians, input)
     else:
-        gaussians = codec.decode_next(gaussians, output)
+        gaussians = codec.decode_next(gaussians, input)
     gaussians.save_ply(output)
 
 
@@ -33,7 +38,7 @@ def run_codec(
         sh_degree, device):
     decode_once(
         codec,
-        destination=destination_init, iteration=iteration_init,
+        source=source_init, destination=destination_init, iteration=iteration_init,
         sh_degree=sh_degree, device=device, init=True
     )
     for i in range(start_frame, end_frame + 1):
@@ -42,7 +47,7 @@ def run_codec(
         frame_destination = os.path.join(destination, frame)
         decode_once(
             codec,
-            destination=frame_destination, iteration=iteration,
+            source=frame_source, destination=frame_destination, iteration=iteration,
             sh_degree=sh_degree, device=device, init=False
         )
 
