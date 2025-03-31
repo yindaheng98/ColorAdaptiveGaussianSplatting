@@ -1,3 +1,5 @@
+import os
+import shutil
 import numpy as np
 import torch
 from gaussian_splatting import GaussianModel
@@ -27,6 +29,9 @@ class Codec:
         # decoding context
         self._layers_dict = None
 
+        # pick up context
+        self._ply_path_src = None
+
     def encode_init(self, model: GaussianModel, ply_path: str):
         if self.tiling_first:
             layers_dict, tiles, self._tile_ids = self.frame_quantizer.quantize_tiling(model, update=False)
@@ -50,6 +55,13 @@ class Codec:
             model = self.frame_quantizer.quantizer.dequantize(model, ids_dict, codebook_dict, xyz=xyz, replace=True)
         self.frame_extractor.init(model)
         return model
+
+    def pickup_init(self, max_sh_degree: int, ply_path_src: str, ply_path_dst: str, layer_dict: dict):
+        if self.tiling_first:
+            self.frame_quantizer.pickup_quantized(max_sh_degree, ply_path_src, ply_path_dst, layer_dict)
+        else:
+            self.frame_quantizer.quantizer.pickup_quantized(max_sh_degree, ply_path_src, ply_path_dst, layer_dict)
+        self._ply_path_src = ply_path_src
 
     def encode_next(self, model: GaussianModel, ply_path: str):
         if self.tiling_first:
@@ -79,3 +91,18 @@ class Codec:
         diff_mask = np.unpackbits(diff_mask_npz["mask"], count=diff_mask_npz["n"], axis=-1, bitorder='little')
         diff_mask = torch.from_numpy(diff_mask).to(device=model._xyz.device, dtype=torch.bool)
         return self.frame_extractor.merge_next(diff_mask, diff_gaussians)
+
+    def pickup_next(self, max_sh_degree: int, ply_path_src: str, ply_path_dst: str, layer_dict: dict):
+        if self.tiling_first:
+            self.frame_quantizer.pickup_quantized_codebook(max_sh_degree, self._ply_path_src, ply_path_dst, layer_dict)
+            self.frame_quantizer.pickup_quantized_codes(max_sh_degree, ply_path_src, ply_path_dst, layer_dict)
+        else:
+            self.frame_quantizer.quantizer.pickup_quantized_codebook(max_sh_degree, self._ply_path_src, ply_path_dst, layer_dict)
+            self.frame_quantizer.quantizer.pickup_quantized_codes(max_sh_degree, ply_path_src, ply_path_dst, layer_dict)
+            mask_src = ply_path_src.replace(".ply", ".mask.npz")
+            mask_dst = ply_path_dst.replace(".ply", ".mask.npz")
+            if mask_src == mask_dst:
+                return
+            if os.path.exists(mask_dst):
+                os.remove(mask_dst)
+            shutil.copy(mask_src, mask_dst)

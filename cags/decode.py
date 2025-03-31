@@ -15,7 +15,7 @@ def copy_not_exists(source, destination):
     shutil.copy(source, destination)
 
 
-def decode_once(codec: Codec, source, destination, iteration, sh_degree, device, init):
+def decode_once(codec: Codec, source, destination, iteration, sh_degree, device, layers, pickup_sh_degree, init):
     copy_not_exists(os.path.join(source, "cfg_args"), os.path.join(destination, "cfg_args"))
     copy_not_exists(os.path.join(source, "cameras.json"), os.path.join(destination, "cameras.json"))
     input = os.path.join(source, "point_cloud", "iteration_" + str(iteration), "point_cloud.ply")
@@ -24,9 +24,17 @@ def decode_once(codec: Codec, source, destination, iteration, sh_degree, device,
     shutil.rmtree(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), ignore_errors=True)
     os.makedirs(os.path.join(destination, "point_cloud", "iteration_" + str(iteration)), exist_ok=True)
     if init:
-        gaussians = codec.decode_init(gaussians, input)
+        if len(layers) <= 0:
+            gaussians = codec.decode_init(gaussians, input)
+        else:
+            codec.pickup_init(pickup_sh_degree, input, output, layers)
+            gaussians = codec.decode_init(gaussians, output)
     else:
-        gaussians = codec.decode_next(gaussians, input)
+        if len(layers) <= 0:
+            gaussians = codec.decode_next(gaussians, input)
+        else:
+            codec.pickup_next(pickup_sh_degree, input, output, layers)
+            gaussians = codec.decode_next(gaussians, output)
     gaussians.save_ply(output)
 
 
@@ -35,11 +43,13 @@ def run_codec(
         source, destination, iteration,
         source_init, destination_init, iteration_init,
         frame_format, start_frame, end_frame,
-        sh_degree, device):
+        sh_degree, device, layers, pickup_sh_degree):
     decode_once(
         codec,
         source=source_init, destination=destination_init, iteration=iteration_init,
-        sh_degree=sh_degree, device=device, init=True
+        sh_degree=sh_degree, device=device,
+        layers=layers, pickup_sh_degree=pickup_sh_degree,
+        init=True
     )
     for i in range(start_frame, end_frame + 1):
         frame = frame_format % i
@@ -48,7 +58,9 @@ def run_codec(
         decode_once(
             codec,
             source=frame_source, destination=frame_destination, iteration=iteration,
-            sh_degree=sh_degree, device=device, init=False
+            sh_degree=sh_degree, device=device,
+            layers=layers, pickup_sh_degree=pickup_sh_degree,
+            init=False
         )
 
 
@@ -71,12 +83,15 @@ if __name__ == "__main__":
     parser.add_argument("--no_tiling_first", action='store_true')
     parser.add_argument("--no_tiling_rest", action='store_true')
     parser.add_argument("--interframe", choices=["none", "quantize", "interframe"], default="interframe")
+    parser.add_argument("-l", "--layer", default=[], action='append', type=str)
+    parser.add_argument("--pickup_sh_degree", type=int, default=1)
     args = parser.parse_args()
     configs = {o.split("=", 1)[0]: eval(o.split("=", 1)[1]) for o in args.option}
+    layers = {o.split("=", 1)[0]: int(o.split("=", 1)[1]) for o in args.layer}
     codec = prepare_codec(draco=args.draco, tiling_first=not args.no_tiling_first, tiling_rest=not args.no_tiling_rest, interframe=args.interframe, **configs)
     run_codec(
         codec=codec,
         source=args.source, destination=args.destination, iteration=args.iteration,
         source_init=args.source_init, destination_init=args.destination_init, iteration_init=args.iteration_init,
         frame_format=args.frame_format, start_frame=args.frame_start, end_frame=args.frame_end,
-        sh_degree=args.sh_degree, device=args.device)
+        sh_degree=args.sh_degree, device=args.device, layers=layers, pickup_sh_degree=args.pickup_sh_degree)
