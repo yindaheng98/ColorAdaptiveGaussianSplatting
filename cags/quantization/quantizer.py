@@ -157,7 +157,12 @@ class ScalableQuantizer(InterfaceScalableQuantizer, ExcludeZeroSHQuantizer):
         return self.encode_layers(model._opacity.detach(), ids, codebook, self.n_bit_baselayer_opacity, self.n_bits_proposal_opacity)
 
     def layerize_scaling(self, model: GaussianModel, ids, codebook):
-        return self.encode_layers(model.get_scaling.detach(), ids, codebook, self.n_bit_baselayer_scaling, self.n_bits_proposal_scaling)
+        def dist_func(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+            ab = model.scaling_inverse_activation(torch.cat([a, b], dim=0)) # special case for scaling
+            center = ab.mean(dim=0, keepdim=True)
+            dist = torch.norm(ab-center, dim=1, p=2).mean()
+            return dist
+        return self.encode_layers(model.get_scaling.detach(), ids, codebook, self.n_bit_baselayer_scaling, self.n_bits_proposal_scaling, dist_func=dist_func)
 
     def layerize_unknown(self, model: GaussianModel, ids_dict: Dict[str, torch.Tensor], codebook_dict: Dict[str, torch.Tensor]):
         layers_dict: Dict[str, List[Layer]] = {}
