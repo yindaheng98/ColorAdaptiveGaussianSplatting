@@ -1,13 +1,12 @@
 import os
 import shutil
-import torch
 from gaussian_splatting import GaussianModel
 from cags.quantization import ScalableQuantizer, DracoCompressedScalableQuantizer
-from scalablevq import n_bits_proposal_balanced_clusters, n_bits_proposal_balanced_values
 from cags.tiling import MortonTiling, AverageSplitTiling
 from cags.tilequant import TillingScalableQuantizer
 from cags.interframe import NoInterframeExtractor, InterframeExtractor, QuantizedInterframeExtractor
 from cags.codec import Codec
+from scalablevq import n_bits_proposal_balanced_clusters, n_bits_proposal_balanced_values  # ! used in {o.split("=", 1)[0]: eval(o.split("=", 1)[1]) for o in args.option}
 
 
 def copy_not_exists(source, destination):
@@ -17,6 +16,29 @@ def copy_not_exists(source, destination):
         os.remove(destination)
     os.makedirs(os.path.dirname(destination), exist_ok=True)
     shutil.copy(source, destination)
+
+
+def prepare_codec(draco, tiling_first, tiling_rest, interframe, **kwargs):
+    if draco:
+        frame_quantizer = TillingScalableQuantizer(DracoCompressedScalableQuantizer(**kwargs), MortonTiling())
+    else:
+        frame_quantizer = TillingScalableQuantizer(ScalableQuantizer(**kwargs), MortonTiling())
+    match interframe:
+        case "none":
+            frame_extractor = NoInterframeExtractor()
+        case "quantize":
+            frame_extractor = QuantizedInterframeExtractor(quantizer=frame_quantizer.quantizer)
+        case "interframe":
+            frame_extractor = InterframeExtractor()
+        case _:
+            raise ValueError(f"Unknown interframe option: {interframe}")
+    codec = Codec(
+        frame_extractor=frame_extractor,
+        frame_quantizer=frame_quantizer,
+        tiling_rest=AverageSplitTiling() if tiling_rest else None,
+        tiling_first=tiling_first,
+    )
+    return codec
 
 
 def encode_once(codec: Codec, source, destination, iteration, sh_degree, device, init):
@@ -44,32 +66,12 @@ def decode_once(codec: Codec, destination, iteration, sh_degree, device, init):
     gaussians.save_ply(output)
 
 
-def main(
+def run_codec(
+    codec: Codec,
         source, destination, iteration,
         source_init, destination_init, iteration_init,
         frame_format, start_frame, end_frame,
-        sh_degree, device, draco, encode,
-        tiling_first, tiling_rest, interframe,
-        **kwargs):
-    if draco:
-        frame_quantizer = TillingScalableQuantizer(DracoCompressedScalableQuantizer(**kwargs), MortonTiling())
-    else:
-        frame_quantizer = TillingScalableQuantizer(ScalableQuantizer(**kwargs), MortonTiling())
-    match interframe:
-        case "none":
-            frame_extractor = NoInterframeExtractor()
-        case "quantize":
-            frame_extractor = QuantizedInterframeExtractor(quantizer=frame_quantizer.quantizer)
-        case "interframe":
-            frame_extractor = InterframeExtractor()
-        case _:
-            raise ValueError(f"Unknown interframe option: {interframe}")
-    codec = Codec(
-        frame_extractor=frame_extractor,
-        frame_quantizer=frame_quantizer,
-        tiling_rest=AverageSplitTiling() if tiling_rest else None,
-        tiling_first=tiling_first,
-    )
+        sh_degree, device, encode):
     if encode:
         encode_once(
             codec,
@@ -122,10 +124,10 @@ if __name__ == "__main__":
     parser.add_argument("--interframe", choices=["none", "quantize", "interframe"], default="interframe")
     args = parser.parse_args()
     configs = {o.split("=", 1)[0]: eval(o.split("=", 1)[1]) for o in args.option}
-    main(
+    codec = prepare_codec(draco=args.draco, tiling_first=not args.no_tiling_first, tiling_rest=not args.no_tiling_rest, interframe=args.interframe, **configs)
+    run_codec(
+        codec=codec,
         source=args.source, destination=args.destination, iteration=args.iteration,
         source_init=args.source_init, destination_init=args.destination_init, iteration_init=args.iteration_init,
         frame_format=args.frame_format, start_frame=args.frame_start, end_frame=args.frame_end,
-        sh_degree=args.sh_degree, device=args.device, draco=args.draco, encode=not args.decode,
-        tiling_first=not args.no_tiling_first, tiling_rest=not args.no_tiling_rest, interframe=args.interframe,
-        **configs)
+        sh_degree=args.sh_degree, device=args.device, encode=not args.decode)
