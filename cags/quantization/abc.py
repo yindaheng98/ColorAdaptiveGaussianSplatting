@@ -133,3 +133,18 @@ class InterfaceScalableQuantizer(AbstractQuantizer):
     def pickup_quantized(self, max_sh_degree: int, ply_path_src: str, ply_path_dst: str, layer_dict: Dict[str, int]):
         self.pickup_quantized_codebook(max_sh_degree, ply_path_src, ply_path_dst, layer_dict)
         self.pickup_quantized_codes(max_sh_degree, ply_path_src, ply_path_dst, layer_dict)
+
+    # ---------------- pickup quantized layer ----------------
+
+    @abc.abstractmethod
+    def count_codebook_layer(self, max_sh_degree: int, ply_path: str) -> Dict[str, int]:
+        pass
+
+    @abc.abstractmethod
+    def count_codes_layer(self, max_sh_degree: int, ply_path: str) -> Dict[str, int]:
+        pass
+
+    def count_layer(self, max_sh_degree: int, ply_path: str) -> Dict[str, int]:
+        layer_dict_codebook = self.count_codebook_layer(max_sh_degree, ply_path)
+        layer_dict_codes = self.count_codes_layer(max_sh_degree, ply_path)
+        return {key: min(layer_dict_codebook[key], layer_dict_codes[key]) for key in layer_dict_codes.keys()}

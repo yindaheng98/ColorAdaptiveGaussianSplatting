@@ -158,7 +158,7 @@ class ScalableQuantizer(InterfaceScalableQuantizer, ExcludeZeroSHQuantizer):
 
     def layerize_scaling(self, model: GaussianModel, ids, codebook):
         def dist_func(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
-            ab = model.scaling_inverse_activation(torch.cat([a, b], dim=0)) # special case for scaling
+            ab = model.scaling_inverse_activation(torch.cat([a, b], dim=0))  # special case for scaling
             center = ab.mean(dim=0, keepdim=True)
             dist = torch.norm(ab-center, dim=1, p=2).mean()
             return dist
@@ -396,3 +396,23 @@ class ScalableQuantizer(InterfaceScalableQuantizer, ExcludeZeroSHQuantizer):
             for i in range(1, layer_dict[key] + 1):
                 filenames.append(os.path.splitext(ply_path)[0] + f".layer.{key}.{i}.codes.npz")
         return filenames
+
+    def count_codebook_layer(self, max_sh_degree: int, ply_path: str) -> Dict[str, int]:
+        layer_dict = {}
+        keys = ["rotation_re", "rotation_im", "opacity", "scaling", "features_dc", *(f"features_rest_{i}" for i in range(max_sh_degree))]
+        for key in keys:
+            i = 0
+            while os.path.exists(os.path.splitext(ply_path)[0] + f".layer.{key}.{i}.codebook.npz"):
+                i += 1
+            layer_dict[key] = i
+        return layer_dict
+
+    def count_codes_layer(self, max_sh_degree: int, ply_path: str) -> Dict[str, int]:
+        layer_dict = {}
+        keys = ["rotation_re", "rotation_im", "opacity", "scaling", "features_dc", *(f"features_rest_{i}" for i in range(max_sh_degree))]
+        for key in keys:
+            i = 0
+            while os.path.exists(os.path.splitext(ply_path)[0] + f".layer.{key}.{i}.codes.npz"):
+                i += 1
+            layer_dict[key] = i
+        return layer_dict
