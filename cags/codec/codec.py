@@ -63,6 +63,9 @@ class Codec:
             self.frame_quantizer.quantizer.pickup_quantized(max_sh_degree, ply_path_src, ply_path_dst, layer_dict)
         self._ply_path_src = ply_path_src
 
+    def save_mask(self, ply_path: str, diff_mask: torch.Tensor):
+        np.savez_compressed(ply_path.replace(".ply", ".mask.npz"), mask=np.packbits(diff_mask.cpu().numpy(), axis=-1, bitorder='little'), n=diff_mask.shape[0])
+
     def encode_next(self, model: GaussianModel, ply_path: str):
         if self.tiling_first:
             model = self.frame_quantizer.tiling.sort_as_tiles(model, self._tile_ids)
@@ -76,7 +79,13 @@ class Codec:
             layers_dict = self.frame_quantizer.quantizer.layerize(diff_gaussians, ids_dict, codebook_dict, update_layers=False)
             self.frame_quantizer.quantizer.save_baselayer_codes(diff_gaussians, ply_path, layers_dict)
             self.frame_quantizer.quantizer.save_enhencementlayers_codes(ply_path, layers_dict)
-        np.savez_compressed(ply_path.replace(".ply", ".mask.npz"), mask=np.packbits(diff_mask.cpu().numpy(), axis=-1, bitorder='little'), n=diff_mask.shape[0])
+        self.save_mask(ply_path, diff_mask)
+
+    def load_mask(self, ply_path: str, device) -> torch.Tensor:
+        diff_mask_npz = np.load(ply_path.replace(".ply", ".mask.npz"))
+        diff_mask = np.unpackbits(diff_mask_npz["mask"], count=diff_mask_npz["n"], axis=-1, bitorder='little')
+        diff_mask = torch.from_numpy(diff_mask).to(device=device, dtype=torch.bool)
+        return diff_mask
 
     def decode_next(self, model: GaussianModel, ply_path: str) -> GaussianModel:
         if self.tiling_rest is not None:
@@ -87,9 +96,7 @@ class Codec:
             layers_dict = self.frame_quantizer.quantizer.load_enhencementlayers_codes(ply_path, layers_dict, model._xyz.device)
             ids_dict, codebook_dict = self.frame_quantizer.quantizer.delayerize(model.max_sh_degree, layers_dict)
             diff_gaussians = self.frame_quantizer.quantizer.dequantize(model, ids_dict, codebook_dict, xyz=xyz, replace=True)
-        diff_mask_npz = np.load(ply_path.replace(".ply", ".mask.npz"))
-        diff_mask = np.unpackbits(diff_mask_npz["mask"], count=diff_mask_npz["n"], axis=-1, bitorder='little')
-        diff_mask = torch.from_numpy(diff_mask).to(device=model._xyz.device, dtype=torch.bool)
+        diff_mask = self.load_mask(ply_path, model._xyz.device)
         return self.frame_extractor.merge_next(diff_mask, diff_gaussians)
 
     def pickup_next(self, max_sh_degree: int, ply_path_src: str, ply_path_dst: str, layer_dict: dict):
