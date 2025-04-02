@@ -401,7 +401,7 @@ class ScalableQuantizer(InterfaceScalableQuantizer, ExcludeZeroSHQuantizer):
         keys = ["rotation_re", "rotation_im", "opacity", "scaling", "features_dc", *(f"features_rest_{i}" for i in range(max_sh_degree))]
         for key in keys:
             i = 0
-            while os.path.exists(os.path.splitext(ply_path)[0] + f".layer.{key}.{i}.codebook.npz"):
+            while os.path.exists(os.path.splitext(ply_path)[0] + f".layer.{key}.{i + 1}.codebook.npz"):
                 i += 1
             layer_dict[key] = i
         return layer_dict
@@ -411,7 +411,7 @@ class ScalableQuantizer(InterfaceScalableQuantizer, ExcludeZeroSHQuantizer):
         keys = ["rotation_re", "rotation_im", "opacity", "scaling", "features_dc", *(f"features_rest_{i}" for i in range(max_sh_degree))]
         for key in keys:
             i = 0
-            while os.path.exists(os.path.splitext(ply_path)[0] + f".layer.{key}.{i}.codes.npz"):
+            while os.path.exists(os.path.splitext(ply_path)[0] + f".layer.{key}.{i + 1}.codes.npz"):
                 i += 1
             layer_dict[key] = i
         return layer_dict
