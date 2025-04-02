@@ -3,7 +3,30 @@ import shutil
 from gaussian_splatting import GaussianModel
 from cags.codec import Codec
 from cags.encode import prepare_codec
-from scalablevq import n_bits_proposal_balanced_clusters, n_bits_proposal_balanced_values  # ! used in {o.split("=", 1)[0]: eval(o.split("=", 1)[1]) for o in args.option}
+
+banned_dequantize_config = dict(
+    n_bit_baselayer=None,
+    n_bits_proposal=None,
+    n_bit_baselayer_rotation_re=None,
+    n_bits_proposal_rotation_re=None,
+    n_bit_baselayer_rotation_im=None,
+    n_bits_proposal_rotation_im=None,
+    n_bit_baselayer_opacity=None,
+    n_bits_proposal_opacity=None,
+    n_bit_baselayer_scaling=None,
+    n_bits_proposal_scaling=None,
+    n_bit_baselayer_features_dc=None,
+    n_bits_proposal_features_dc=None,
+    n_bit_baselayer_features_rest=[],
+    n_bits_proposal_features_rest=[],
+    num_clusters=None,
+    num_clusters_rotation_re=None,
+    num_clusters_rotation_im=None,
+    num_clusters_opacity=None,
+    num_clusters_scaling=None,
+    num_clusters_features_dc=None,
+    num_clusters_features_rest=[],
+)
 
 
 def copy_not_exists(source, destination):
@@ -86,7 +109,7 @@ if __name__ == "__main__":
     parser.add_argument("-l", "--layer", default=[], action='append', type=str)
     parser.add_argument("--pickup_sh_degree", type=int, default=1)
     args = parser.parse_args()
-    configs = {o.split("=", 1)[0]: eval(o.split("=", 1)[1]) for o in args.option}
+    configs = {**{o.split("=", 1)[0]: eval(o.split("=", 1)[1]) for o in args.option}, **banned_dequantize_config}
     layers = {o.split("=", 1)[0]: int(o.split("=", 1)[1]) for o in args.layer}
     codec = prepare_codec(draco=args.draco, tiling_first=not args.no_tiling_first, tiling_rest=not args.no_tiling_rest, interframe=args.interframe, **configs)
     run_codec(

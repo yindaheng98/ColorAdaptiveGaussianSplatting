@@ -58,7 +58,6 @@ class ScalableQuantizer(InterfaceScalableQuantizer, ExcludeZeroSHQuantizer):
         **kwargs
     ):
         super().__init__(max_sh_degree=max_sh_degree, **kwargs)
-        self.n_bit_baselayer = n_bit_baselayer
         self.n_bits_proposal_rotation_re = n_bits_proposal_rotation_re or n_bits_proposal
         self.n_bit_baselayer_rotation_re = n_bit_baselayer_rotation_re or n_bit_baselayer
         self.n_bits_proposal_rotation_im = n_bits_proposal_rotation_im or n_bits_proposal
