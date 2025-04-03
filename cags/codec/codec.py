@@ -92,8 +92,12 @@ class Codec:
             tiles = self.frame_quantizer.load_tiles(model, ply_path, self._layers_dict)
             diff_gaussians = self.frame_quantizer.dequantize_stitching(model, tiles)
         else:
-            layers_dict, xyz = self.frame_quantizer.quantizer.load_baselayer_codes(model.max_sh_degree, ply_path, self._layers_dict, model._xyz.device)
-            layers_dict = self.frame_quantizer.quantizer.load_enhencementlayers_codes(ply_path, layers_dict, model._xyz.device)
+            try:  # if `ply_path` is pick up frame, then the codebook can also be loaded from `ply_path`
+                layers_dict, xyz = self.frame_quantizer.quantizer.load_baselayer(model.max_sh_degree, ply_path, model._xyz.device)
+                layers_dict = self.frame_quantizer.quantizer.load_enhencementlayers(ply_path, layers_dict, model._xyz.device)
+            except FileNotFoundError:
+                layers_dict, xyz = self.frame_quantizer.quantizer.load_baselayer_codes(model.max_sh_degree, ply_path, self._layers_dict, model._xyz.device)
+                layers_dict = self.frame_quantizer.quantizer.load_enhencementlayers_codes(ply_path, layers_dict, model._xyz.device)
             ids_dict, codebook_dict = self.frame_quantizer.quantizer.delayerize(model.max_sh_degree, layers_dict)
             diff_gaussians = self.frame_quantizer.quantizer.dequantize(model, ids_dict, codebook_dict, xyz=xyz, replace=True)
         diff_mask = self.load_mask(ply_path, model._xyz.device)
