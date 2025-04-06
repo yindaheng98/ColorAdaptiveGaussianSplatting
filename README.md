@@ -34,7 +34,7 @@ pip install --upgrade --target . --no-deps .
 ## Build Draco
 
 ```sh
-mkdir build && cd build && cmake ../../submodules/draco -DCMAKE_BUILD_TYPE=Release && cd ../
+mkdir build && cd build && cmake ../submodules/draco -DCMAKE_BUILD_TYPE=Release && cd ../
 cmake --build build --config Release --target draco_encoder
 cmake --build build --config Release --target draco_decoder
 ```
