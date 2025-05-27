@@ -177,6 +177,7 @@
                 "-on_bits_proposal_features_dc=n_bits_proposal_balanced_values(7)",
                 "-onum_clusters_features_rest=[256, 128, 64]",
                 "-on_bits_proposal_features_rest=[n_bits_proposal_balanced_values(6), n_bits_proposal_balanced_values(5), n_bits_proposal_balanced_values(4)]",
+                // "-on_bit_code_limit=31",
             ]
         },
         {

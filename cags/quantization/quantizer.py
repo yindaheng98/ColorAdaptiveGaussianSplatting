@@ -55,6 +55,7 @@ class ScalableQuantizer(InterfaceScalableQuantizer, ExcludeZeroSHQuantizer):
         n_bits_proposal_features_dc: int | List[int] | Callable[[int, torch.Tensor, torch.Tensor], List[int]] = None,
         n_bit_baselayer_features_rest: List[int] = [],
         n_bits_proposal_features_rest: List[int] | List[int] | List[Callable[[int, torch.Tensor, torch.Tensor], List[int]]] = [],
+        n_bit_code_limit=63,
         **kwargs
     ):
         super().__init__(max_sh_degree=max_sh_degree, **kwargs)
@@ -70,12 +71,13 @@ class ScalableQuantizer(InterfaceScalableQuantizer, ExcludeZeroSHQuantizer):
         self.n_bit_baselayer_features_dc = n_bit_baselayer_features_dc or n_bit_baselayer
         self.n_bits_proposal_features_rest = [((n_bits_proposal_features_rest[i] or n_bits_proposal) if len(n_bits_proposal_features_rest) > i else n_bits_proposal) for i in range(max_sh_degree)]
         self.n_bit_baselayer_features_rest = [((n_bit_baselayer_features_rest[i] or n_bit_baselayer) if len(n_bit_baselayer_features_rest) > i else n_bit_baselayer) for i in range(max_sh_degree)]
+        self.n_bit_code_limit = n_bit_code_limit
 
         self._layers_dict = {}
 
     def encode_layers(self, values: torch.Tensor, ids: torch.Tensor, codebook: torch.Tensor, n_bit_baselayer: int, n_bits_proposal: int | List[int] | Callable[[int, torch.Tensor, torch.Tensor], List[int]], **kwargs):
         # return encode_layers(values, ids, codebook, n_bit_baselayer, n_bits_proposal, visualize=values.shape[1] == 3)  # debug
-        return encode_layers(values, ids, codebook, n_bit_baselayer, n_bits_proposal, **kwargs)
+        return encode_layers(values, ids, codebook, n_bit_baselayer, n_bits_proposal, n_bit_limit=self.n_bit_code_limit, **kwargs)
 
     def encode_known_layers(self, ids: torch.Tensor, codebook: torch.Tensor, layers: List[Layer]):
         return encode_known_layers(ids, codebook, layers)
