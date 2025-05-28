@@ -55,7 +55,7 @@ class ScalableQuantizer(InterfaceScalableQuantizer, ExcludeZeroSHQuantizer):
         n_bits_proposal_features_dc: int | List[int] | Callable[[int, torch.Tensor, torch.Tensor], List[int]] = None,
         n_bit_baselayer_features_rest: List[int] = [],
         n_bits_proposal_features_rest: List[int] | List[int] | List[Callable[[int, torch.Tensor, torch.Tensor], List[int]]] = [],
-        n_bit_code_limit=63,
+        n_bit_code_limit=31,
         **kwargs
     ):
         super().__init__(max_sh_degree=max_sh_degree, **kwargs)
