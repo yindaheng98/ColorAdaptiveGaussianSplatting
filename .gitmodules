@@ -1,4 +1,4 @@
 [submodule "submodules/draco"]
 	path = submodules/draco
-	url = https://github.com/yindaheng98/draco
-	branch = custom_data
+	url = https://github.com/yindaheng98/draco3dgs
+	branch = reduced3dgs
