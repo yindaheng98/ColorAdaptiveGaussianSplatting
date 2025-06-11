@@ -10,16 +10,23 @@ from gaussian_splatting.gaussian_model import GaussianModel
 from scalablevq import Layer
 from .quantizer import ScalableQuantizer
 
+default_encoder_executable = os.path.join(os.path.dirname(__file__), "draco_encoder") + (".exe" if platform.system() == "Windows" else "")
+default_decoder_executable = os.path.join(os.path.dirname(__file__), "draco_decoder") + (".exe" if platform.system() == "Windows" else "")
+
 
 class DracoCompressedScalableQuantizer(ScalableQuantizer):
     def __init__(
         self,
-        draco_encoder_executable: str = "./build/Release/draco_encoder.exe" if platform.system() == "Windows" else "./build/draco_encoder",
-        draco_decoder_executable: str = "./build/Release/draco_decoder.exe" if platform.system() == "Windows" else "./build/draco_decoder",
+        draco_encoder_executable: str = None,
+        draco_decoder_executable: str = None,
         draco_qp=16,
         **kwargs
     ):
         super().__init__(**kwargs)
+        if draco_encoder_executable is None:
+            draco_encoder_executable = default_encoder_executable
+        if draco_decoder_executable is None:
+            draco_decoder_executable = default_decoder_executable
         self.draco_encoder_executable = draco_encoder_executable
         self.draco_decoder_executable = draco_decoder_executable
         self.draco_qp = draco_qp

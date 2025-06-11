@@ -1,5 +1,7 @@
 data
 output
+cags/quantization/draco_encoder.exe
+cags/quantization/draco_decoder.exe
 
 prpa/
 scalablevq/

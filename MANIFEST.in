@@ -1,0 +1,5 @@
+include MANIFEST.in
+include cags/quantization/draco_encoder
+include cags/quantization/draco_encoder.exe
+include cags/quantization/draco_decoder
+include cags/quantization/draco_decoder.exe

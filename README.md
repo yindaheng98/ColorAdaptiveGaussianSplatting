@@ -30,11 +30,3 @@ pip install --upgrade --target . --no-deps git+https://github.com/yindaheng98/ga
 pip install --upgrade --target . --no-deps git+https://github.com/yindaheng98/reduced-3dgs.git@main
 pip install --upgrade --target . --no-deps .
 ```
-
-## Build Draco
-
-```sh
-mkdir build && cd build && cmake ../submodules/draco -DCMAKE_BUILD_TYPE=Release && cd ../
-cmake --build build --config Release --target draco_encoder
-cmake --build build --config Release --target draco_decoder
-```
