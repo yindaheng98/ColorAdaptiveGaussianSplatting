@@ -14,11 +14,11 @@ def copy_not_exists(source, destination):
     shutil.copy(source, destination)
 
 
-def pickup(source, destination, iteration, sh_degree, device, draco, layers, pickup_sh_degree, **kwargs):
+def pickup(source, destination, iteration, sh_degree, device, draco, layers, pickup_sh_degree, source_name, **kwargs):
     copy_not_exists(os.path.join(source, "cfg_args"), os.path.join(destination, "cfg_args"))
     copy_not_exists(os.path.join(source, "cameras.json"), os.path.join(destination, "cameras.json"))
-    input = os.path.join(source, "point_cloud", "iteration_" + str(iteration), "point_cloud_quantized.ply")
-    output = os.path.join(destination, "point_cloud", "iteration_" + str(iteration), "point_cloud_quantized.ply")
+    input = os.path.join(source, "point_cloud", "iteration_" + str(iteration), f"{source_name}.ply")
+    output = os.path.join(destination, "point_cloud", "iteration_" + str(iteration), f"{source_name}.ply")
     gaussians = GaussianModel(sh_degree).to(device)
     if draco:
         quantizer = DracoCompressedScalableQuantizer(**kwargs)
@@ -44,9 +44,14 @@ if __name__ == "__main__":
     parser.add_argument("--draco", action='store_true')
     parser.add_argument("-l", "--layer", default=[], action='append', type=str)
     parser.add_argument("--pickup_sh_degree", type=int, default=1)
+    parser.add_argument("--source_name",
+                        choices=["point_cloud", "point_cloud_quantized"],
+                        default="point_cloud_quantized",
+                        help="If you are picking up the frame 1 output from cags.encode, use point_cloud. If you are picking up the output from cags.quantize, use point_cloud_quantized.")
     args = parser.parse_args()
     configs = {o.split("=", 1)[0]: eval(o.split("=", 1)[1]) for o in args.option}
     layers = {o.split("=", 1)[0]: int(o.split("=", 1)[1]) for o in args.layer}
     pickup(
         source=args.source, destination=args.destination, iteration=args.iteration, sh_degree=args.sh_degree,
-        device=args.device, draco=args.draco, layers=layers, pickup_sh_degree=args.pickup_sh_degree, **configs)
+        device=args.device, draco=args.draco, layers=layers,
+        pickup_sh_degree=args.pickup_sh_degree, source_name=args.source_name, **configs)
