@@ -43,7 +43,7 @@ pip install --upgrade git+https://github.com/yindaheng98/reduced-3dgs.git@main -
 ## PyPI Install
 
 ```shell
-pip install --upgrade cags
+pip install --upgrade ColorAdaptiveGaussianSplatting
 ```
 
 or build the latest version from source:

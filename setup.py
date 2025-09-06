@@ -58,22 +58,21 @@ class CMakeBuild(build_ext):
 with open("README.md", "r", encoding='utf8') as fh:
     long_description = fh.read()
 
-package_dir = {
-    'cags': 'cags',
-}
 packages = ['cags'] + ["cags." + package for package in find_packages(where="cags")]
 
 setup(
-    name='cags',
+    name='ColorAdaptiveGaussianSplatting',
     version='0.14.0',
     author='yindaheng98',
     author_email='yindaheng98@gmail.com',
-    url='https://github.com/yindaheng98/cags',
+    url='https://github.com/yindaheng98/ColorAdaptiveGaussianSplatting',
     description=u'CAGS: Color-Adaptive 3D Gaussian Splatting',
     long_description=long_description,
     long_description_content_type="text/markdown",
     packages=packages,
     package_dir={'cags': 'cags'},
+    include_package_data=True,
+    python_requires=">=3.10",
     ext_modules=[
         CMakeExtension("cags.quantization.draco_encoder", sourcedir="submodules/draco", target="draco_encoder"),
         CMakeExtension("cags.quantization.draco_decoder", sourcedir="submodules/draco", target="draco_decoder"),
@@ -81,8 +80,6 @@ setup(
     cmdclass={"build_ext": CMakeBuild},
     classifiers=[
         "Programming Language :: Python :: 3",
-        "License :: OSI Approved :: MIT License",
-        "Operating System :: OS Independent",
     ],
     install_requires=[
         'scikit-learn',
