@@ -26,20 +26,17 @@ The paper also introduces **PRPA (Post-Render Perspective Align)**, a post-rende
 * [PyTorch](https://pytorch.org/) (>= v2.4 recommended)
 * [CUDA Toolkit](https://developer.nvidia.com/cuda-12-4-0-download-archive) (12.4 recommended, match with PyTorch version)
 * [CMake](https://cmake.org/) and a C++ compiler for building bundled Draco tools
-* [`ScalableVQ`](https://github.com/yindaheng98/ScalableVQ)
-* [`gaussian-splatting`](https://github.com/yindaheng98/gaussian-splatting)
-* [`reduced-3dgs`](https://github.com/yindaheng98/reduced-3dgs)
 
-Install dependencies that are not declared by the package metadata:
+Runtime dependencies, including [`ScalableVQ`](https://github.com/yindaheng98/ScalableVQ), [`gaussian-splatting`](https://github.com/yindaheng98/gaussian-splatting), and [`reduced-3dgs`](https://github.com/yindaheng98/reduced-3dgs), are declared by the package metadata. For source builds, make sure the basic build tools are available:
 
 ```shell
 pip install wheel setuptools
-pip install --upgrade git+https://github.com/yindaheng98/ScalableVQ.git@master
 ```
 
-(Optional) If you have trouble with [`gaussian-splatting`](https://github.com/yindaheng98/gaussian-splatting) or [`reduced-3dgs`](https://github.com/yindaheng98/reduced-3dgs), install them from source:
+(Optional) If you need unreleased source versions of those packages, install them before installing CAGS:
 
 ```shell
+pip install --upgrade git+https://github.com/yindaheng98/ScalableVQ.git@master
 pip install --upgrade git+https://github.com/yindaheng98/gaussian-splatting.git@master --no-build-isolation
 pip install --upgrade git+https://github.com/yindaheng98/reduced-3dgs.git@main --no-build-isolation
 ```
