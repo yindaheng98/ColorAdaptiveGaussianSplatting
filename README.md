@@ -1,8 +1,12 @@
-# CAGS: Color-Adaptive 3D Gaussian Splatting
+# CAGS: Color-Adaptive Gaussian Splatting
+
+[**(SIGGRAPH 2026) CAGS: Color-Adaptive Volumetric Video Streaming with Dynamic 3D Gaussian Splatting**](https://arxiv.org/abs/2605.09279)
 
 This repo is the **Python implementation of CAGS**, a package for scalable compression and reconstruction of 3D Gaussian Splatting point clouds. It is built on top of [`gaussian-splatting`](https://github.com/yindaheng98/gaussian-splatting), [`reduced-3dgs`](https://github.com/yindaheng98/reduced-3dgs), [`ScalableVQ`](https://github.com/yindaheng98/ScalableVQ), and Google's Draco geometry codec.
 
 CAGS converts Gaussian attributes into scalable base and enhancement layers, optionally compresses the base layer with Draco, splits large point clouds into spatial tiles, and stores only changed Gaussians for later frames in a dynamic sequence. The package provides command-line tools for single-frame quantization, tiled quantization, inter-frame encoding / decoding, progressive layer pickup, and rendering reconstructed results.
+
+The paper also introduces **PRPA (Post-Render Perspective Align)**, a post-render perspective alignment algorithm. Its implementation is maintained separately at [`PostRenderPerspectiveAlign`](https://github.com/yindaheng98/PostRenderPerspectiveAlign).
 
 ## Features
 
